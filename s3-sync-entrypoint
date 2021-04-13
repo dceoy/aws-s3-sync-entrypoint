@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
 #
-# Tiny and portable bash script as an executable command
+# Entrypoint command with data sync to and from AWS S3
 #
 # Usage:
-#   s3-sync-entrypoint [--debug] [--cpus=<int>] [--bool] [--var=<str>] [<arg>...]
+#   s3-sync-entrypoint [--debug] [--dryrun] (--input=<uri>)...
+#       (--output=<uri>)... <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
 # Options:
-#   --debug           Debug mode
-#   --cpus=<int>      Limit CPUs for multiprocessing
-#   --bool            Option without an argument
-#   --var=<str>       Option with an argument
-#   --version         Print version
-#   -h, --help        Print usage
+#   --debug           Run with debug mode
+#   --dryrun          Print commands without execution
+#   --input=<uri>     Specify S3 input URIs
+#                     (S3 data is transferred to "${COMMAND_INPUT_DIR}".)
+#   --output=<uri>    Specify S3 output URIs
+#                     (Local data is transferred from "${COMMAND_OUTPUT_DIR}".)
+#   --version         Print the version and exit
+#   -h, --help        Print the usage and exit
 #
 # Arguments:
-#   <arg>             Main arguments
+#   <command>         Command to execute
 
 set -euo pipefail
 
@@ -26,32 +29,21 @@ if [[ ${#} -ge 1 ]]; then
   done
 fi
 
-COMMAND_PATH=$(realpath "${0}")
-COMMAND_NAME=$(basename "${COMMAND_PATH}")
-COMMAND_VERSION='v0.0.1'
+SCRIPT_PATH=$(realpath "${0}")
+SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
+SCRIPT_VERSION='v0.0.1'
 
-case "${OSTYPE}" in
-  darwin* )
-    CPUS=$(sysctl -n hw.ncpu)
-    ;;
-  linux* )
-    CPUS=$(grep -ce '^processor\s\+:' /proc/cpuinfo)
-    ;;
-  * )
-    CPUS=1
-    :
-    ;;
-esac
-MAIN_ARGS=()
-OPTION_BOOL=0
-OPTION_VAR='NULL'
+DRYRUN=0
+S3_INPUT_URIS=()
+S3_OUTPUT_URIS=()
+COMMANDS=()
 
 function print_version {
-  echo "${COMMAND_NAME}: ${COMMAND_VERSION}"
+  echo "${SCRIPT_NAME}: ${SCRIPT_VERSION}"
 }
 
 function print_usage {
-  sed -ne '1,2d; /^#/!q; s/^#$/# /; s/^# //p;' "${COMMAND_PATH}"
+  sed -ne '1,2d; /^#/!q; s/^#$/# /; s/^# //p;' "${SCRIPT_PATH}"
 }
 
 function abort {
@@ -59,11 +51,18 @@ function abort {
     if [[ ${#} -eq 0 ]]; then
       cat -
     else
-      COMMAND_NAME=$(basename "${COMMAND_PATH}")
-      echo "${COMMAND_NAME}: ${*}"
+      SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
+      echo "${SCRIPT_NAME}: ${*}"
     fi
   } >&2
   exit 1
+}
+
+function bash_c {
+  echo "\$ ${@}"
+  if [[ ${DRYRUN} -eq 0 ]]; then
+    bash -c "${*}"
+  fi
 }
 
 while [[ ${#} -ge 1 ]]; do
@@ -71,20 +70,20 @@ while [[ ${#} -ge 1 ]]; do
     '--debug' )
       shift 1
       ;;
-    '--bool' )
-      OPTION_BOOL=1 && shift 1
+    '--dryrun' )
+      DRYRUN=1 && shift 1
       ;;
-    '--var' )
-      OPTION_VAR="${2}" && shift 2
+    '--input' )
+      S3_INPUT_URIS+=("${2}") && shift 2
       ;;
-    --var=* )
-      OPTION_VAR="${1#*\=}" && shift 1
+    --input=* )
+      S3_INPUT_URIS+=("${1#*\=}") && shift 1
       ;;
-    '--cpus' )
-      CPUS="${2}" && shift 2
+    '--output' )
+      S3_OUTPUT_URIS+=("${2}") && shift 2
       ;;
-    --cpus=* )
-      CPUS="${1#*\=}" && shift 1
+    --output=* )
+      S3_OUTPUT_URIS+=("${1#*\=}") && shift 1
       ;;
     '--version' )
       print_version && exit 0
@@ -92,23 +91,53 @@ while [[ ${#} -ge 1 ]]; do
     '-h' | '--help' )
       print_usage && exit 0
       ;;
-    -* )
-      abort "invalid option: ${1}"
-      ;;
     * )
-      MAIN_ARGS+=("${1}") && shift 1
+      COMMANDS=("${@:1}") && break
       ;;
   esac
 done
 
-[[ ${#MAIN_ARGS[@]} -gt 0 ]] \
-  && ARGS_STR="${MAIN_ARGS[*]}" \
-  || ARGS_STR='NULL'
-printf "OSTYPE:      \t%s\n" "${OSTYPE}"
-printf "BASH:        \t%s\n" "$(command -v bash)"
-printf "COMMAND_PATH:\t%s\n" "${COMMAND_PATH}"
-printf "PWD:         \t%s\n" "${PWD}"
-printf "OPTION_BOOL: \t%d\n" "${OPTION_BOOL}"
-printf "OPTION_VAR:  \t%s\n" "${OPTION_VAR}"
-printf "CPUS:        \t%d\n" "${CPUS}"
-printf "MAIN_ARGS:   \t%s\n" "${ARGS_STR}"
+printf "OSTYPE:             \t%s\n" "${OSTYPE}"
+printf "BASH:               \t%s\n" "$(command -v bash)"
+printf "SCRIPT_PATH:        \t%s\n" "${SCRIPT_PATH}"
+printf "PWD:                \t%s\n" "${PWD}"
+printf "AWSCLI:             \t%s\n" "$(command -v aws)"
+
+if [[ ${#COMMANDS[@]} -gt 0 ]]; then
+  printf "COMMANDS:           \t%s\n" "${COMMANDS[@]}"
+else
+  abort "$(print_usage)"
+fi
+
+if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
+  printf "S3_INPUT_URIS:      \t%s\n" "${S3_INPUT_URIS[@]}"
+  printf "COMMAND_INPUT_DIR:  \t%s\n" "${COMMAND_INPUT_DIR}"
+else
+  printf "COMMAND_INPUT_DIR:  \t%s\n" '(NA)'
+fi
+
+if [[ ${#S3_OUTPUT_URIS[@]} -gt 0 ]]; then
+  printf "S3_OUTPUT_URIS:      \t%s\n" "${S3_OUTPUT_URIS[@]}"
+  printf "COMMAND_OUTPUT_DIR:  \t%s\n" "${COMMAND_OUTPUT_DIR}"
+else
+  printf "COMMAND_OUTPUT_DIR:  \t%s\n" '(NA)'
+fi
+
+
+bash_c 'aws --version'
+
+if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
+  for i in "${S3_INPUT_URIS[@]}"; do
+    n=$(basename "${i}")
+    bash_c "aws s3 sync ${i} ${COMMAND_INPUT_DIR}/${n}"
+  done
+fi
+
+bash_c "${COMMANDS[*]}"
+
+if [[ ${#S3_OUTPUT_URIS[@]} -gt 0 ]]; then
+  for o in "${S3_OUTPUT_URIS[@]}"; do
+    n=$(basename "${o}")
+    bash_c "aws s3 sync ${COMMAND_OUTPUT_DIR}/${n} ${o}"
+  done
+fi
