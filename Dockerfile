@@ -22,11 +22,11 @@ RUN set -e \
       && unzip awscli.zip \
       && ./aws/install
 
-ENV COMMAND_INPUT_DIR /input
-ENV COMMAND_OUTPUT_DIR /output
+ENV LOCAL_INPUT_DIR /input
+ENV LOCAL_OUTPUT_DIR /output
 
 RUN set -e \
-      && mkdir "${COMMAND_INPUT_DIR}" "${COMMAND_OUTPUT_DIR}" \
+      && mkdir "${LOCAL_INPUT_DIR}" "${LOCAL_OUTPUT_DIR}" \
       && chmod +x /usr/local/bin/s3-sync-entrypoint
 
 ENTRYPOINT ["/usr/local/bin/s3-sync-entrypoint"]

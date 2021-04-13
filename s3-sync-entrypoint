@@ -12,9 +12,9 @@
 #   --debug           Run with debug mode
 #   --dryrun          Print commands without execution
 #   --input=<uri>     Specify S3 input URIs
-#                     (S3 data is transferred to "${COMMAND_INPUT_DIR}".)
+#                     (S3 data is transferred to "${LOCAL_INPUT_DIR}".)
 #   --output=<uri>    Specify S3 output URIs
-#                     (Local data is transferred from "${COMMAND_OUTPUT_DIR}".)
+#                     (Local data is transferred from "${LOCAL_OUTPUT_DIR}".)
 #   --version         Print the version and exit
 #   -h, --help        Print the usage and exit
 #
@@ -104,23 +104,23 @@ printf "PWD:                \t%s\n" "${PWD}"
 printf "AWSCLI:             \t%s\n" "$(command -v aws)"
 
 if [[ ${#COMMANDS[@]} -gt 0 ]]; then
-  printf "COMMANDS:           \t%s\n" "${COMMANDS[@]}"
+  printf "COMMANDS:         \t%s\n" "${COMMANDS[@]}"
 else
   abort "$(print_usage)"
 fi
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
-  printf "S3_INPUT_URIS:      \t%s\n" "${S3_INPUT_URIS[@]}"
-  printf "COMMAND_INPUT_DIR:  \t%s\n" "${COMMAND_INPUT_DIR}"
+  printf "S3_INPUT_URIS:    \t%s\n" "${S3_INPUT_URIS[@]}"
+  printf "LOCAL_INPUT_DIR:  \t%s\n" "${LOCAL_INPUT_DIR}"
 else
-  printf "COMMAND_INPUT_DIR:  \t%s\n" '(NA)'
+  printf "LOCAL_INPUT_DIR:  \t%s\n" '(NA)'
 fi
 
 if [[ ${#S3_OUTPUT_URIS[@]} -gt 0 ]]; then
-  printf "S3_OUTPUT_URIS:      \t%s\n" "${S3_OUTPUT_URIS[@]}"
-  printf "COMMAND_OUTPUT_DIR:  \t%s\n" "${COMMAND_OUTPUT_DIR}"
+  printf "S3_OUTPUT_URIS:    \t%s\n" "${S3_OUTPUT_URIS[@]}"
+  printf "LOCAL_OUTPUT_DIR:  \t%s\n" "${LOCAL_OUTPUT_DIR}"
 else
-  printf "COMMAND_OUTPUT_DIR:  \t%s\n" '(NA)'
+  printf "LOCAL_OUTPUT_DIR:  \t%s\n" '(NA)'
 fi
 
 
@@ -129,7 +129,7 @@ bash_c 'aws --version'
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   for i in "${S3_INPUT_URIS[@]}"; do
     n=$(basename "${i}")
-    bash_c "aws s3 sync ${i} ${COMMAND_INPUT_DIR}/${n}"
+    bash_c "aws s3 sync ${i} ${LOCAL_INPUT_DIR}/${n}"
   done
 fi
 
@@ -138,6 +138,6 @@ bash_c "${COMMANDS[*]}"
 if [[ ${#S3_OUTPUT_URIS[@]} -gt 0 ]]; then
   for o in "${S3_OUTPUT_URIS[@]}"; do
     n=$(basename "${o}")
-    bash_c "aws s3 sync ${COMMAND_OUTPUT_DIR}/${n} ${o}"
+    bash_c "aws s3 sync ${LOCAL_OUTPUT_DIR}/${n} ${o}"
   done
 fi
