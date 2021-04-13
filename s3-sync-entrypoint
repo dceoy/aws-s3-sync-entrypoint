@@ -37,6 +37,7 @@ DRYRUN=0
 S3_INPUT_URIS=()
 S3_OUTPUT_URI=''
 COMMANDS=()
+START_DATE="$(date +%s)"
 
 function print_version {
   echo "${SCRIPT_NAME}: ${SCRIPT_VERSION}"
@@ -59,7 +60,7 @@ function abort {
 }
 
 function echo_n_eval {
-  printf "$ %s\n" "${*}"
+  printf "[%s]\t$ %s\n" "$(date)" "${*}"
   if [[ ${DRYRUN} -eq 0 ]]; then
     eval "${@}"
   fi
@@ -104,17 +105,17 @@ printf "PWD:                \t%s\n" "${PWD}"
 printf "AWSCLI:             \t%s\n" "$(command -v aws)"
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
-  printf "S3_INPUT_URIS:    \t%s\n" "${S3_INPUT_URIS[*]}"
-  printf "LOCAL_INPUT_DIR:  \t%s\n" "${LOCAL_INPUT_DIR}"
+  printf "S3_INPUT_URIS:      \t%s\n" "${S3_INPUT_URIS[*]}"
+  printf "LOCAL_INPUT_DIR:    \t%s\n" "${LOCAL_INPUT_DIR}"
 fi
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  printf "S3_OUTPUT_URI:     \t%s\n" "${S3_OUTPUT_URI}"
-  printf "LOCAL_OUTPUT_DIR:  \t%s\n" "${LOCAL_OUTPUT_DIR}"
+  printf "S3_OUTPUT_URI:      \t%s\n" "${S3_OUTPUT_URI}"
+  printf "LOCAL_OUTPUT_DIR:   \t%s\n" "${LOCAL_OUTPUT_DIR}"
 fi
 
 if [[ ${#COMMANDS[@]} -gt 0 ]]; then
-  printf "COMMANDS:         \t%s\n" "${COMMANDS[*]}"
+  printf "COMMANDS:           \t%s\n" "${COMMANDS[*]}"
 else
   abort "$(print_usage)"
 fi
@@ -135,3 +136,7 @@ echo_n_eval "${COMMANDS[@]}"
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
   echo_n_eval "aws s3 sync ${LOCAL_OUTPUT_DIR} ${S3_OUTPUT_URI}"
 fi
+
+echo
+ELAPSED_SECONDS=$(( $(date +%s) - START_DATE ))
+printf "TOTAL_ELAPSED_TIME: \t%s\n" "$(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
