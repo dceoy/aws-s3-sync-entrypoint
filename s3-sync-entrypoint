@@ -58,10 +58,10 @@ function abort {
   exit 1
 }
 
-function bash_c {
-  echo "\$ ${*}"
+function echo_n_eval {
+  printf "$ %s\n" "${*}"
   if [[ ${DRYRUN} -eq 0 ]]; then
-    bash -c "${*}"
+    eval "${@}"
   fi
 }
 
@@ -103,38 +103,35 @@ printf "SCRIPT_PATH:        \t%s\n" "${SCRIPT_PATH}"
 printf "PWD:                \t%s\n" "${PWD}"
 printf "AWSCLI:             \t%s\n" "$(command -v aws)"
 
-if [[ ${#COMMANDS[@]} -gt 0 ]]; then
-  printf "COMMANDS:         \t%s\n" "${COMMANDS[@]}"
-else
-  abort "$(print_usage)"
-fi
-
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   printf "S3_INPUT_URIS:    \t%s\n" "${S3_INPUT_URIS[*]}"
   printf "LOCAL_INPUT_DIR:  \t%s\n" "${LOCAL_INPUT_DIR}"
-else
-  printf "LOCAL_INPUT_DIR:  \t%s\n" '(NA)'
 fi
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
   printf "S3_OUTPUT_URI:     \t%s\n" "${S3_OUTPUT_URI}"
   printf "LOCAL_OUTPUT_DIR:  \t%s\n" "${LOCAL_OUTPUT_DIR}"
+fi
+
+if [[ ${#COMMANDS[@]} -gt 0 ]]; then
+  printf "COMMANDS:         \t%s\n" "${COMMANDS[*]}"
 else
-  printf "LOCAL_OUTPUT_DIR:  \t%s\n" '(NA)'
+  abort "$(print_usage)"
 fi
 
 
-bash_c 'aws --version'
+echo
+echo_n_eval 'aws --version'
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   for i in "${S3_INPUT_URIS[@]}"; do
     n=$(basename "${i}")
-    bash_c "aws s3 sync ${i} ${LOCAL_INPUT_DIR}/${n}"
+    echo_n_eval "aws s3 sync ${i} ${LOCAL_INPUT_DIR}/${n}"
   done
 fi
 
-bash_c "${COMMANDS[*]}"
+echo_n_eval "${COMMANDS[@]}"
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  bash_c "aws s3 sync ${LOCAL_OUTPUT_DIR} ${S3_OUTPUT_URI}"
+  echo_n_eval "aws s3 sync ${LOCAL_OUTPUT_DIR} ${S3_OUTPUT_URI}"
 fi
