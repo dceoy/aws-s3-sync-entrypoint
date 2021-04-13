@@ -59,8 +59,14 @@ function abort {
   exit 1
 }
 
+function validate_s3_prefix {
+  for s in "${@}"; do
+    [[ "${s}" =~ ^s3://.+ ]] || abort "invalid URI: ${s}"
+  done
+}
+
 function echo_n_eval {
-  printf "[%s]\t$ %s\n" "$(date)" "${*}"
+  printf "%s [%s]\t$ %s\n" "$(date)" "${PWD}" "${*}"
   if [[ ${DRYRUN} -eq 0 ]]; then
     eval "${@}"
   fi
@@ -100,18 +106,20 @@ done
 
 printf "OSTYPE:             \t%s\n" "${OSTYPE}"
 printf "BASH:               \t%s\n" "$(command -v bash)"
-printf "SCRIPT_PATH:        \t%s\n" "${SCRIPT_PATH}"
-printf "PWD:                \t%s\n" "${PWD}"
+printf "S3_SYNC_ENTRYPOINT: \t%s\n" "${SCRIPT_PATH}"
 printf "AWSCLI:             \t%s\n" "$(command -v aws)"
+printf "PWD:                \t%s\n" "${PWD}"
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
-  printf "S3_INPUT_URIS:      \t%s\n" "${S3_INPUT_URIS[*]}"
   printf "LOCAL_INPUT_DIR:    \t%s\n" "${LOCAL_INPUT_DIR}"
+  printf "S3_INPUT_URIS:      \t%s\n" "${S3_INPUT_URIS[*]}"
+  validate_s3_prefix "${S3_INPUT_URIS[@]}"
 fi
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  printf "S3_OUTPUT_URI:      \t%s\n" "${S3_OUTPUT_URI}"
   printf "LOCAL_OUTPUT_DIR:   \t%s\n" "${LOCAL_OUTPUT_DIR}"
+  printf "S3_OUTPUT_URI:      \t%s\n" "${S3_OUTPUT_URI}"
+  validate_s3_prefix "${S3_OUTPUT_URI}"
 fi
 
 if [[ ${#COMMANDS[@]} -gt 0 ]]; then
