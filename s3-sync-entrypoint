@@ -4,7 +4,7 @@
 #
 # Usage:
 #   s3-sync-entrypoint [--debug] [--dryrun] (--input=<uri>)...
-#       (--output=<uri>)... <command>...
+#       [--output=<uri>] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -35,7 +35,7 @@ SCRIPT_VERSION='v0.0.1'
 
 DRYRUN=0
 S3_INPUT_URIS=()
-S3_OUTPUT_URIS=()
+S3_OUTPUT_URI=''
 COMMANDS=()
 
 function print_version {
@@ -59,7 +59,7 @@ function abort {
 }
 
 function bash_c {
-  echo "\$ ${@}"
+  echo "\$ ${*}"
   if [[ ${DRYRUN} -eq 0 ]]; then
     bash -c "${*}"
   fi
@@ -80,10 +80,10 @@ while [[ ${#} -ge 1 ]]; do
       S3_INPUT_URIS+=("${1#*\=}") && shift 1
       ;;
     '--output' )
-      S3_OUTPUT_URIS+=("${2}") && shift 2
+      S3_OUTPUT_URI="${2}" && shift 2
       ;;
     --output=* )
-      S3_OUTPUT_URIS+=("${1#*\=}") && shift 1
+      S3_OUTPUT_URI="${1#*\=}" && shift 1
       ;;
     '--version' )
       print_version && exit 0
@@ -110,14 +110,14 @@ else
 fi
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
-  printf "S3_INPUT_URIS:    \t%s\n" "${S3_INPUT_URIS[@]}"
+  printf "S3_INPUT_URIS:    \t%s\n" "${S3_INPUT_URIS[*]}"
   printf "LOCAL_INPUT_DIR:  \t%s\n" "${LOCAL_INPUT_DIR}"
 else
   printf "LOCAL_INPUT_DIR:  \t%s\n" '(NA)'
 fi
 
-if [[ ${#S3_OUTPUT_URIS[@]} -gt 0 ]]; then
-  printf "S3_OUTPUT_URIS:    \t%s\n" "${S3_OUTPUT_URIS[@]}"
+if [[ "${S3_OUTPUT_URI}" != '' ]]; then
+  printf "S3_OUTPUT_URI:     \t%s\n" "${S3_OUTPUT_URI}"
   printf "LOCAL_OUTPUT_DIR:  \t%s\n" "${LOCAL_OUTPUT_DIR}"
 else
   printf "LOCAL_OUTPUT_DIR:  \t%s\n" '(NA)'
@@ -135,9 +135,6 @@ fi
 
 bash_c "${COMMANDS[*]}"
 
-if [[ ${#S3_OUTPUT_URIS[@]} -gt 0 ]]; then
-  for o in "${S3_OUTPUT_URIS[@]}"; do
-    n=$(basename "${o}")
-    bash_c "aws s3 sync ${LOCAL_OUTPUT_DIR}/${n} ${o}"
-  done
+if [[ "${S3_OUTPUT_URI}" != '' ]]; then
+  bash_c "aws s3 sync ${LOCAL_OUTPUT_DIR} ${S3_OUTPUT_URI}"
 fi
