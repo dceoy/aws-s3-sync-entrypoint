@@ -124,6 +124,9 @@ fi
 echo
 echo_n_eval 'aws --version'
 
+[[ -d "${LOCAL_INPUT_DIR}" ]] || echo_n_eval "mkdir -p ${LOCAL_INPUT_DIR}"
+[[ -d "${LOCAL_OUTPUT_DIR}" ]] || echo_n_eval "mkdir -p ${LOCAL_OUTPUT_DIR}"
+
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   for i in "${S3_INPUT_URIS[@]}"; do
     n=$(basename "${i}")
