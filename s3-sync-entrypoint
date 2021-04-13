@@ -66,7 +66,7 @@ function validate_s3_prefix {
 }
 
 function echo_n_eval {
-  printf "%s [%s]\t$ %s\n" "$(date)" "${PWD}" "${*}"
+  printf "[%s]\t$ %s\n" "$(date)" "${*}"
   if [[ ${DRYRUN} -eq 0 ]]; then
     eval "${@}"
   fi
@@ -137,8 +137,7 @@ echo_n_eval 'aws --version'
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   for i in "${S3_INPUT_URIS[@]}"; do
-    n=$(basename "${i}")
-    echo_n_eval "aws s3 sync ${i} ${LOCAL_INPUT_DIR}/${n}"
+    echo_n_eval "aws s3 sync ${i} ${LOCAL_INPUT_DIR}"
   done
 fi
 
