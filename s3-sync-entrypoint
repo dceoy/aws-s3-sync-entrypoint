@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Entrypoint command with data sync to and from AWS S3
+# Bash entrypoint to synchronize data with AWS S3 before and after command execution
 #
 # Usage:
 #   s3-sync-entrypoint [--debug] [--dryrun] (--input=<uri>)...

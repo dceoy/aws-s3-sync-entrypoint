@@ -1,7 +1,7 @@
 aws-s3-sync-entrypoint
 ======================
 
-Entrypoint command with data sync to and from AWS S3
+Bash entrypoint to synchronize data with AWS S3 before and after command execution
 
 Installation
 ------------
@@ -17,7 +17,7 @@ Docker image
 The image is available at [Docker Hub](https://hub.docker.com/r/dceoy/s3-sync-entrypoint/).
 
 ```sh
-$ docker pull dceoy/s3-sync-entrypoint
+$ docker image pull dceoy/s3-sync-entrypoint
 ```
 
 Usage
@@ -42,8 +42,8 @@ Usage
     ```
 
     The above command works as follows:
-    1.  Sync `s3://bucket-i/input0` and `s3://bucket-i/input1` to `/input` (`LOCAL_INPUT_DIR`).
+    1.  Recursively copy `s3://bucket-i/input0` and `s3://bucket-i/input1` to `/input` (`LOCAL_INPUT_DIR`).
     2.  Execute `cp -r /input/input0 /input/input1 /output/`.
-    3.  Sync `/output` (`LOCAL_OUTPUT_DIR`) to `s3://bucket-o/output0`.
+    3.  Recursively copy `/output` (`LOCAL_OUTPUT_DIR`) to `s3://bucket-o/output0`.
 
 Run `s3-sync-entrypoint --help` for more information.
