@@ -3,7 +3,7 @@
 # Bash entrypoint to synchronize data with AWS S3 before and after command execution
 #
 # Usage:
-#   s3-sync-entrypoint [--debug] [--dryrun] (--input=<uri>)...
+#   s3-sync-entrypoint [--debug] [--dryrun] [--cp] (--input=<uri>)...
 #       [--output=<uri>] (--inbound-sync-option=<arg>)...
 #       (--outboud-sync-option=<arg>)... <command>...
 #   s3-sync-entrypoint --version
@@ -12,6 +12,7 @@
 # Options:
 #   --debug           Run with debug mode
 #   --dryrun          Print commands without execution
+#   --cp              Use `aws s3 cp` instead of `aws s3 sync`
 #   --input=<uri>     Specify S3 input URIs
 #                     (S3 data is transferred to "${LOCAL_INPUT_DIR}".)
 #   --output=<uri>    Specify S3 output URIs
@@ -37,9 +38,10 @@ fi
 
 SCRIPT_PATH=$(realpath "${0}")
 SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
-SCRIPT_VERSION='v0.0.1'
+SCRIPT_VERSION='v0.0.2'
 
 DRYRUN=0
+SYNC_COMMAND='sync'
 S3_INPUT_URIS=()
 S3_OUTPUT_URI=''
 INBOUND_SYNC_OPTIONS=()
@@ -87,6 +89,9 @@ while [[ ${#} -ge 1 ]]; do
       ;;
     '--dryrun' )
       DRYRUN=1 && shift 1
+      ;;
+    '--cp' )
+      SYNC_COMMAND='cp' && shift 1
       ;;
     '--input' )
       S3_INPUT_URIS+=("${2}") && shift 2
@@ -138,9 +143,9 @@ if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   printf "S3_INPUT_URIS:        \t%s\n" "${S3_INPUT_URIS[*]}"
   if [[ ${#INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     printf "INBOUND_SYNC_OPTIONS: \t%s\n" "${INBOUND_SYNC_OPTIONS[*]}"
-    INBOUND_SYNC="sync ${INBOUND_SYNC_OPTIONS[*]}"
+    INBOUND_SYNC="${SYNC_COMMAND} ${INBOUND_SYNC_OPTIONS[*]}"
   else
-    INBOUND_SYNC='sync'
+    INBOUND_SYNC="${SYNC_COMMAND}"
   fi
   validate_s3_prefix "${S3_INPUT_URIS[@]}"
 fi
@@ -150,9 +155,9 @@ if [[ "${S3_OUTPUT_URI}" != '' ]]; then
   printf "S3_OUTPUT_URI:        \t%s\n" "${S3_OUTPUT_URI}"
   if [[ ${#OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     printf "OUTBOUND_SYNC_OPTIONS: \t%s\n" "${OUTBOUND_SYNC_OPTIONS[*]}"
-    OUTBOUND_SYNC="sync ${OUTBOUND_SYNC_OPTIONS[*]}"
+    OUTBOUND_SYNC="${SYNC_COMMAND} ${OUTBOUND_SYNC_OPTIONS[*]}"
   else
-    OUTBOUND_SYNC='sync'
+    OUTBOUND_SYNC="${SYNC_COMMAND}"
   fi
   validate_s3_prefix "${S3_OUTPUT_URI}"
 fi
