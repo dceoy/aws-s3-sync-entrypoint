@@ -46,7 +46,7 @@ S3_INPUT_URIS=()
 S3_OUTPUT_URI=''
 INBOUND_SYNC_OPTIONS=()
 OUTBOUND_SYNC_OPTIONS=()
-COMMANDS=()
+COMMAND=()
 START_DATE="$(date +%s)"
 
 function print_version {
@@ -69,14 +69,14 @@ function abort {
   exit 1
 }
 
-function validate_s3_prefix {
+function validate_s3_uri {
   for s in "${@}"; do
     [[ "${s}" =~ ^s3://.+ ]] || abort "invalid URI: ${s}"
   done
 }
 
 function echo_n_eval {
-  printf "[%s]\t$ %s\n" "$(date)" "${*}"
+  printf "[%s]  $ %s\n" "$(date)" "${*}"
   if [[ ${DRYRUN} -eq 0 ]]; then
     eval "${@}"
   fi
@@ -127,43 +127,43 @@ while [[ ${#} -ge 1 ]]; do
       abort "invalid option: ${1}"
       ;;
     * )
-      COMMANDS=("${@:1}") && break
+      COMMAND=("${@:1}") && break
       ;;
   esac
 done
 
-printf "OSTYPE:               \t%s\n" "${OSTYPE}"
-printf "BASH:                 \t%s\n" "$(command -v bash)"
-printf "S3_SYNC_ENTRYPOINT:   \t%s\n" "${SCRIPT_PATH}"
-printf "AWSCLI:               \t%s\n" "$(command -v aws)"
-printf "PWD:                  \t%s\n" "${PWD}"
+printf "OSTYPE:                   %s\n" "${OSTYPE}"
+printf "BASH:                     %s\n" "$(command -v bash)"
+printf "S3_SYNC_ENTRYPOINT:       %s\n" "${SCRIPT_PATH}"
+printf "AWSCLI:                   %s\n" "$(command -v aws)"
+printf "PWD:                      %s\n" "${PWD}"
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
-  printf "LOCAL_INPUT_DIR:      \t%s\n" "${LOCAL_INPUT_DIR}"
-  printf "S3_INPUT_URIS:        \t%s\n" "${S3_INPUT_URIS[*]}"
+  printf "LOCAL_INPUT_DIR:          %s\n" "${LOCAL_INPUT_DIR}"
+  printf "S3_INPUT_URIS:            %s\n" "${S3_INPUT_URIS[*]}"
   if [[ ${#INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
-    printf "INBOUND_SYNC_OPTIONS: \t%s\n" "${INBOUND_SYNC_OPTIONS[*]}"
     INBOUND_SYNC="${SYNC_COMMAND} ${INBOUND_SYNC_OPTIONS[*]}"
   else
     INBOUND_SYNC="${SYNC_COMMAND}"
   fi
-  validate_s3_prefix "${S3_INPUT_URIS[@]}"
+  printf "INBOUND_SYNC:             %s\n" "${INBOUND_SYNC}"
+  validate_s3_uri "${S3_INPUT_URIS[@]}"
 fi
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  printf "LOCAL_OUTPUT_DIR:     \t%s\n" "${LOCAL_OUTPUT_DIR}"
-  printf "S3_OUTPUT_URI:        \t%s\n" "${S3_OUTPUT_URI}"
+  printf "LOCAL_OUTPUT_DIR:         %s\n" "${LOCAL_OUTPUT_DIR}"
+  printf "S3_OUTPUT_URI:            %s\n" "${S3_OUTPUT_URI}"
   if [[ ${#OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
-    printf "OUTBOUND_SYNC_OPTIONS: \t%s\n" "${OUTBOUND_SYNC_OPTIONS[*]}"
     OUTBOUND_SYNC="${SYNC_COMMAND} ${OUTBOUND_SYNC_OPTIONS[*]}"
   else
     OUTBOUND_SYNC="${SYNC_COMMAND}"
   fi
-  validate_s3_prefix "${S3_OUTPUT_URI}"
+  printf "OUTBOUND_SYNC:            %s\n" "${OUTBOUND_SYNC}"
+  validate_s3_uri "${S3_OUTPUT_URI}"
 fi
 
-if [[ ${#COMMANDS[@]} -gt 0 ]]; then
-  printf "COMMANDS:             \t%s\n" "${COMMANDS[*]}"
+if [[ ${#COMMAND[@]} -gt 0 ]]; then
+  printf "COMMAND:                  %s\n" "${COMMAND[*]}"
 else
   abort "$(print_usage)"
 fi
@@ -181,7 +181,7 @@ if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   done
 fi
 
-echo_n_eval "${COMMANDS[@]}"
+echo_n_eval "${COMMAND[@]}"
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
   echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${LOCAL_OUTPUT_DIR} ${S3_OUTPUT_URI}"
@@ -189,4 +189,4 @@ fi
 
 echo
 ELAPSED_SECONDS=$(( $(date +%s) - START_DATE ))
-printf "TOTAL_ELAPSED_TIME:   \t%s\n" "$(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
+printf "TOTAL_ELAPSED_TIME:       %s\n" "$(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
