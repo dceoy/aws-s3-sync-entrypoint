@@ -3,30 +3,38 @@
 # Bash entrypoint to synchronize data with AWS S3 before and after command execution
 #
 # Usage:
-#   s3-sync-entrypoint [--debug] [--dryrun] [--cp] (--input=<uri>)...
-#       [--output=<uri>] (--inbound-sync-option=<arg>)...
-#       (--outboud-sync-option=<arg>)... <command>...
+#   s3-sync-entrypoint [--debug] [--dryrun] [--cp] (--s3-input=<uri>)...
+#       [--s3-output=<uri>] (--inbound-sync-option=<arg>)...
+#       (--outboud-sync-option=<arg>)... [--input-data-dir=<path>]
+#       [--output-data-dir=<path>] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
 # Options:
-#   --debug           Run with debug mode
-#   --dryrun          Print commands without execution
-#   --cp              Use `aws s3 cp` instead of `aws s3 sync`
-#   --input=<uri>     Specify S3 input URIs
-#                     (S3 data is transferred to "${LOCAL_INPUT_DIR}".)
-#   --output=<uri>    Specify S3 output URIs
-#                     (Local data is transferred from "${LOCAL_OUTPUT_DIR}".)
+#   --debug             Run with debug mode
+#   --dryrun            Print commands without execution
+#   --cp                Use `aws s3 cp` instead of `aws s3 sync`
+#   --s3-input=<uri>    Specify S3 input URIs
+#                       (Data is transferred from S3 to `${INPUT_DATA_DIR}`.)
+#   --s3-output=<uri>   Specify S3 output URIs
+#                       (Data is transferred from `${OUTPUT_DATA_DIR}` to S3.)
 #   --inbound-sync-option=<arg>
-#                     Specify an option of `aws s3 sync` for inbound sync
-#                     (e.g., --inbound-sync-option='--exclude="*.zip"')
+#                       Specify an option of `aws s3 sync` for inbound sync
+#                       (e.g., --inbound-sync-option='--exclude="*.zip"')
 #   --outbound-sync-option=<arg>
-#                     Specify an option of `aws s3 sync` for outbound sync
-#   --version         Print the version and exit
-#   -h, --help        Print the usage and exit
+#                       Specify an option of `aws s3 sync` for outbound sync
+#   --input-data-dir=<path>
+#                       Specify a local directory path for input data from S3
+#                       (This overrides `${INPUT_DATA_DIR}`.)
+#   --output-data-dir=<path>
+#                       Specify a local directory path for output data to S3
+#                       (This overrides `${OUTPUT_DATA_DIR}`.)
+#   --version           Print the version and exit
+#   -h, --help          Print the usage and exit
 #
 # Arguments:
-#   <command>         Command to execute
+#   <command>           A command and arguments for it
+
 
 set -euo pipefail
 
@@ -38,7 +46,7 @@ fi
 
 SCRIPT_PATH=$(realpath "${0}")
 SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
-SCRIPT_VERSION='v0.0.2'
+SCRIPT_VERSION='v0.0.3'
 
 DRYRUN=0
 SYNC_COMMAND='sync'
@@ -93,16 +101,16 @@ while [[ ${#} -ge 1 ]]; do
     '--cp' )
       SYNC_COMMAND='cp' && shift 1
       ;;
-    '--input' )
+    '--s3-input' )
       S3_INPUT_URIS+=("${2}") && shift 2
       ;;
-    --input=* )
+    --s3-input=* )
       S3_INPUT_URIS+=("${1#*\=}") && shift 1
       ;;
-    '--output' )
+    '--s3-output' )
       S3_OUTPUT_URI="${2}" && shift 2
       ;;
-    --output=* )
+    --s3-output=* )
       S3_OUTPUT_URI="${1#*\=}" && shift 1
       ;;
     '--inbound-sync-option' )
@@ -116,6 +124,18 @@ while [[ ${#} -ge 1 ]]; do
       ;;
     --outbound-sync-option=* )
       OUTBOUND_SYNC_OPTIONS+=("${1#*\=}") && shift 1
+      ;;
+    '--input-data-dir' )
+      INPUT_DATA_DIR="${2}" && shift 2
+      ;;
+    --input-data-dir=* )
+      INPUT_DATA_DIR="${1#*\=}" && shift 1
+      ;;
+    '--output-data-dir' )
+      OUTPUT_DATA_DIR="${2}" && shift 2
+      ;;
+    --output-data-dir=* )
+      OUTPUT_DATA_DIR="${1#*\=}" && shift 1
       ;;
     '--version' )
       print_version && exit 0
@@ -139,7 +159,7 @@ printf "AWSCLI:                   %s\n" "$(command -v aws)"
 printf "PWD:                      %s\n" "${PWD}"
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
-  printf "LOCAL_INPUT_DIR:          %s\n" "${LOCAL_INPUT_DIR}"
+  printf "INPUT_DATA_DIR:           %s\n" "${INPUT_DATA_DIR}"
   printf "S3_INPUT_URIS:            %s\n" "${S3_INPUT_URIS[*]}"
   if [[ ${#INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     INBOUND_SYNC="${SYNC_COMMAND} ${INBOUND_SYNC_OPTIONS[*]}"
@@ -151,7 +171,7 @@ if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
 fi
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  printf "LOCAL_OUTPUT_DIR:         %s\n" "${LOCAL_OUTPUT_DIR}"
+  printf "OUTPUT_DATA_DIR:          %s\n" "${OUTPUT_DATA_DIR}"
   printf "S3_OUTPUT_URI:            %s\n" "${S3_OUTPUT_URI}"
   if [[ ${#OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     OUTBOUND_SYNC="${SYNC_COMMAND} ${OUTBOUND_SYNC_OPTIONS[*]}"
@@ -172,19 +192,19 @@ fi
 echo
 echo_n_eval 'aws --version'
 
-[[ -d "${LOCAL_INPUT_DIR}" ]] || echo_n_eval "mkdir -p ${LOCAL_INPUT_DIR}"
-[[ -d "${LOCAL_OUTPUT_DIR}" ]] || echo_n_eval "mkdir -p ${LOCAL_OUTPUT_DIR}"
+[[ -d "${INPUT_DATA_DIR}" ]] || echo_n_eval "mkdir -p ${INPUT_DATA_DIR}"
+[[ -d "${OUTPUT_DATA_DIR}" ]] || echo_n_eval "mkdir -p ${OUTPUT_DATA_DIR}"
 
 if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   for i in "${S3_INPUT_URIS[@]}"; do
-    echo_n_eval "aws s3 ${INBOUND_SYNC} ${i} ${LOCAL_INPUT_DIR}"
+    echo_n_eval "aws s3 ${INBOUND_SYNC} ${i} ${INPUT_DATA_DIR}"
   done
 fi
 
 echo_n_eval "${COMMAND[@]}"
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${LOCAL_OUTPUT_DIR} ${S3_OUTPUT_URI}"
+  echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${S3_OUTPUT_URI}"
 fi
 
 echo

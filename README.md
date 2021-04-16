@@ -23,27 +23,26 @@ $ docker image pull dceoy/s3-sync-entrypoint
 Usage
 -----
 
-1.  Set local input and output directory paths as `LOCAL_INPUT_DIR` and `LOCAL_OUTPUT_DIR`.
+1.  Set local input and output directory paths as `INPUT_DATA_DIR` and `OUTPUT_DATA_DIR`.
 
     ```sh
-    $ export LOCAL_INPUT_DIR=/input
-    $ export LOCAL_OUTPUT_DIR=/output
-    $ mkdir "${LOCAL_INPUT_DIR}" "${LOCAL_OUTPUT_DIR}"
+    $ export INPUT_DATA_DIR=/input
+    $ export OUTPUT_DATA_DIR=/output
     ```
 
 2.  Run a command.
 
     ```sh
     $ s3-sync-entrypoint \
-        --input=s3://bucket-i/input0 \
-        --input=s3://bucket-i/input1 \
-        --output=s3://bucket-o/output0 \
+        --s3-input=s3://bucket-i/input0 \
+        --s3-input=s3://bucket-i/input1 \
+        --s3-output=s3://bucket-o/output0 \
         cp -r /input/input0 /input/input1 /output/
     ```
 
     The above command works as follows:
-    1.  Recursively copy `s3://bucket-i/input0` and `s3://bucket-i/input1` to `/input` (`LOCAL_INPUT_DIR`).
+    1.  Recursively copy `s3://bucket-i/input0` and `s3://bucket-i/input1` to `/input` (`INPUT_DATA_DIR`).
     2.  Execute `cp -r /input/input0 /input/input1 /output/`.
-    3.  Recursively copy `/output` (`LOCAL_OUTPUT_DIR`) to `s3://bucket-o/output0`.
+    3.  Recursively copy `/output` (`OUTPUT_DATA_DIR`) to `s3://bucket-o/output0`.
 
 Run `s3-sync-entrypoint --help` for more information.
