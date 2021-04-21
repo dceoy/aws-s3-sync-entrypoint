@@ -46,7 +46,7 @@ fi
 
 SCRIPT_PATH=$(realpath "${0}")
 SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
-SCRIPT_VERSION='v0.0.3'
+SCRIPT_VERSION='v0.0.4'
 
 DRYRUN=0
 SYNC_COMMAND='sync'
@@ -201,7 +201,10 @@ if [[ ${#S3_INPUT_URIS[@]} -gt 0 ]]; then
   done
 fi
 
-echo_n_eval "${COMMAND[@]}"
+echo_n_eval "${COMMAND[@]}" \
+  && COMMAND_EXIT_CODE="${?}" \
+  || COMMAND_EXIT_CODE="${?}"
+printf "COMMAND_EXIT_CODE:        %s\n" "${COMMAND_EXIT_CODE}"
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
   echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${S3_OUTPUT_URI}"
@@ -210,3 +213,4 @@ fi
 echo
 ELAPSED_SECONDS=$(( $(date +%s) - START_DATE ))
 printf "TOTAL_ELAPSED_TIME:       %s\n" "$(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
+exit "${COMMAND_EXIT_CODE}"
