@@ -5,8 +5,8 @@
 # Usage:
 #   s3-sync-entrypoint [--debug] [--dryrun] [--cp] (--s3-input=<uri>)...
 #       [--s3-output=<uri>] (--inbound-sync-option=<arg>)...
-#       (--outboud-sync-option=<arg>)... [--input-data-dir=<path>]
-#       [--output-data-dir=<path>] <command>...
+#       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
+#       [--output-data-dir=<path>] [--skip-output-on-failure] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -29,6 +29,9 @@
 #   --output-data-dir=<path>
 #                       Specify a local directory path for output data to S3
 #                       (This overrides `${OUTPUT_DATA_DIR}`.)
+#   --skip-output-on-failure
+#                       Skip outbound sync if a command fails
+#                       Ignore a non-zero exit code for a command
 #   --version           Print the version and exit
 #   -h, --help          Print the usage and exit
 #
@@ -49,6 +52,7 @@ SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
 SCRIPT_VERSION='v0.0.4'
 
 DRYRUN=0
+SKIP_OUTPUT_ON_ERROR=0
 SYNC_COMMAND='sync'
 S3_INPUT_URIS=()
 S3_OUTPUT_URI=''
@@ -97,6 +101,9 @@ while [[ ${#} -ge 1 ]]; do
       ;;
     '--dryrun' )
       DRYRUN=1 && shift 1
+      ;;
+    '--skip-output-on-failure' )
+      SKIP_OUTPUT_ON_ERROR=1 && shift 1
       ;;
     '--cp' )
       SYNC_COMMAND='cp' && shift 1
@@ -207,10 +214,15 @@ echo_n_eval "${COMMAND[@]}" \
 printf "COMMAND_EXIT_CODE:        %s\n" "${COMMAND_EXIT_CODE}"
 
 if [[ "${S3_OUTPUT_URI}" != '' ]]; then
-  echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${S3_OUTPUT_URI}"
+  if [[ ${SKIP_OUTPUT_ON_ERROR} -ne 0 ]] && [[ ${COMMAND_EXIT_CODE} -ne 0 ]]; then
+    echo 'The outbound sync is skipped due to the exit code.'
+  else
+    echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${S3_OUTPUT_URI}"
+  fi
 fi
 
 echo
 ELAPSED_SECONDS=$(( $(date +%s) - START_DATE ))
 printf "TOTAL_ELAPSED_TIME:       %s\n" "$(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
+
 exit "${COMMAND_EXIT_CODE}"
