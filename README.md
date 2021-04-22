@@ -42,7 +42,7 @@ Usage
 
     The above command works as follows:
     1.  Recursively copy `s3://bucket-i/input0` and `s3://bucket-i/input1` to `/input` (`INPUT_DATA_DIR`).
-    2.  Execute `cp -r /input/input0 /input/input1 /output/`.
+    2.  Execute the command (`cp -r /input/input0 /input/input1 /output/`).
     3.  Recursively copy `/output` (`OUTPUT_DATA_DIR`) to `s3://bucket-o/output0`.
 
 Run `s3-sync-entrypoint --help` for more information.
