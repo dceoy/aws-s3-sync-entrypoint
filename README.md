@@ -34,9 +34,9 @@ Usage
 
     ```sh
     $ s3-sync-entrypoint \
-        --s3-input=s3://bucket-i/input0 \
-        --s3-input=s3://bucket-i/input1 \
-        --s3-output=s3://bucket-o/output0 \
+        --input-s3=s3://bucket-i/input0 \
+        --input-s3=s3://bucket-i/input1 \
+        --output-s3=s3://bucket-o/output0 \
         cp -r /input/input0 /input/input1 /output/
     ```
 
