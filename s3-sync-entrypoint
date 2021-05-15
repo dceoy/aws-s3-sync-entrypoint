@@ -6,7 +6,8 @@
 #   s3-sync-entrypoint [--debug] [--dryrun] [--cp] (--input-s3=<uri>)...
 #       [--output-s3=<uri>] (--inbound-sync-option=<arg>)...
 #       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
-#       [--output-data-dir=<path>] [--skip-output-on-failure] <command>...
+#       [--output-data-dir=<path>] [--upload-log-to-s3=<uri>]
+#       [--skip-output-on-failure] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -14,9 +15,9 @@
 #   --debug             Run with debug mode
 #   --dryrun            Print commands without execution
 #   --cp                Use `aws s3 cp` instead of `aws s3 sync`
-#   --input-s3=<uri>    Specify S3 input URIs
+#   --input-s3=<uri>    Specify input S3 URIs
 #                       (Data is transferred from S3 to `${INPUT_DATA_DIR}`.)
-#   --output-s3=<uri>   Specify S3 output URIs
+#   --output-s3=<uri>   Specify an output S3 URI
 #                       (Data is transferred from `${OUTPUT_DATA_DIR}` to S3.)
 #   --inbound-sync-option=<arg>
 #                       Specify an option of `aws s3 sync` for inbound sync
@@ -29,6 +30,8 @@
 #   --output-data-dir=<path>
 #                       Specify a local directory path for output data to S3
 #                       (This overrides `${OUTPUT_DATA_DIR}`.)
+#   --upload-log-to-s3=<uri>
+#                       Upload a log file to S3 after processes are completed
 #   --skip-output-on-failure
 #                       Skip outbound sync if a command fails
 #   --version           Print the version and exit
@@ -57,6 +60,8 @@ INPUT_S3_URIS=()
 OUTPUT_S3_URI=''
 INBOUND_SYNC_OPTIONS=()
 OUTBOUND_SYNC_OPTIONS=()
+OUTPUT_LOG_FILE='/tmp/s3-sync-entrypoint.log.txt'
+OUTPUT_LOG_S3_URI=''
 COMMAND=()
 START_DATE="$(date +%s)"
 
@@ -93,8 +98,22 @@ function echo_n_eval {
   fi
 }
 
+function echo_n_log {
+  if [[ -n "${OUTPUT_LOG_S3_URI}" ]]; then
+    echo "${*}" | tee -a "${OUTPUT_LOG_FILE}"
+  else
+    echo "${*}"
+  fi
+}
+
 while [[ ${#} -ge 1 ]]; do
   case "${1}" in
+    '-h' | '--help' )
+      print_usage && exit 0
+      ;;
+    '--version' )
+      print_version && exit 0
+      ;;
     '--debug' )
       shift 1
       ;;
@@ -143,11 +162,11 @@ while [[ ${#} -ge 1 ]]; do
     --output-data-dir=* )
       OUTPUT_DATA_DIR="${1#*\=}" && shift 1
       ;;
-    '--version' )
-      print_version && exit 0
+    '--upload-log-to-s3' )
+      OUTPUT_LOG_S3_URI="${2}" && shift 2
       ;;
-    '-h' | '--help' )
-      print_usage && exit 0
+    --upload-log-to-s3=* )
+      OUTPUT_LOG_S3_URI="${1#*\=}" && shift 1
       ;;
     -* )
       abort "invalid option: ${1}"
@@ -158,46 +177,47 @@ while [[ ${#} -ge 1 ]]; do
   esac
 done
 
-printf "OSTYPE:                   %s\n" "${OSTYPE}"
-printf "BASH:                     %s\n" "$(command -v bash)"
-printf "S3_SYNC_ENTRYPOINT:       %s\n" "${SCRIPT_PATH}"
-printf "AWSCLI:                   %s\n" "$(command -v aws)"
-printf "PWD:                      %s\n" "${PWD}"
+[[ -n "${OUTPUT_LOG_S3_URI}" ]] && echo -n > "${OUTPUT_LOG_FILE}"
+
+echo_n_log "OSTYPE:               ${OSTYPE}"
+echo_n_log "BASH:                 $(command -v bash)"
+echo_n_log "S3_SYNC_ENTRYPOINT:   ${SCRIPT_PATH}"
+echo_n_log "PWD:                  ${PWD}"
+echo_n_log "AWSCLI:               $(command -v aws)"
+echo_n_log "AWSCLI_VERSION        $(aws --version)"
 
 if [[ ${#INPUT_S3_URIS[@]} -gt 0 ]]; then
-  printf "INPUT_DATA_DIR:           %s\n" "${INPUT_DATA_DIR}"
-  printf "INPUT_S3_URIS:            %s\n" "${INPUT_S3_URIS[*]}"
+  echo_n_log "INPUT_DATA_DIR:       ${INPUT_DATA_DIR}"
+  echo_n_log "INPUT_S3_URIS:        ${INPUT_S3_URIS[*]}"
   if [[ ${#INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     INBOUND_SYNC="${SYNC_COMMAND} ${INBOUND_SYNC_OPTIONS[*]}"
   else
     INBOUND_SYNC="${SYNC_COMMAND}"
   fi
-  printf "INBOUND_SYNC:             %s\n" "${INBOUND_SYNC}"
+  echo_n_log "INBOUND_SYNC:         ${INBOUND_SYNC}"
   validate_s3_uri "${INPUT_S3_URIS[@]}"
 fi
 
-if [[ "${OUTPUT_S3_URI}" != '' ]]; then
-  printf "OUTPUT_DATA_DIR:          %s\n" "${OUTPUT_DATA_DIR}"
-  printf "OUTPUT_S3_URI:            %s\n" "${OUTPUT_S3_URI}"
+if [[ -n "${OUTPUT_S3_URI}" ]]; then
+  echo_n_log "OUTPUT_DATA_DIR:      ${OUTPUT_DATA_DIR}"
+  echo_n_log "OUTPUT_S3_URI:        ${OUTPUT_S3_URI}"
   if [[ ${#OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     OUTBOUND_SYNC="${SYNC_COMMAND} ${OUTBOUND_SYNC_OPTIONS[*]}"
   else
     OUTBOUND_SYNC="${SYNC_COMMAND}"
   fi
-  printf "OUTBOUND_SYNC:            %s\n" "${OUTBOUND_SYNC}"
+  echo_n_log "OUTBOUND_SYNC:        ${OUTBOUND_SYNC}"
   validate_s3_uri "${OUTPUT_S3_URI}"
 fi
 
 if [[ ${#COMMAND[@]} -gt 0 ]]; then
-  printf "COMMAND:                  %s\n" "${COMMAND[*]}"
+  echo_n_log "COMMAND:              ${COMMAND[*]}"
 else
   abort "$(print_usage)"
 fi
 
 
 echo
-echo_n_eval 'aws --version'
-
 [[ -d "${INPUT_DATA_DIR}" ]] || echo_n_eval "mkdir -p ${INPUT_DATA_DIR}"
 [[ -d "${OUTPUT_DATA_DIR}" ]] || echo_n_eval "mkdir -p ${OUTPUT_DATA_DIR}"
 
@@ -210,10 +230,10 @@ fi
 echo_n_eval "${COMMAND[@]}" \
   && COMMAND_EXIT_CODE="${?}" \
   || COMMAND_EXIT_CODE="${?}"
-printf "COMMAND_EXIT_CODE:        %s\n" "${COMMAND_EXIT_CODE}"
+echo_n_log "COMMAND_EXIT_CODE:    ${COMMAND_EXIT_CODE}"
 
-if [[ "${OUTPUT_S3_URI}" != '' ]]; then
-  if [[ ${SKIP_OUTPUT_ON_ERROR} -ne 0 ]] && [[ ${COMMAND_EXIT_CODE} -ne 0 ]]; then
+if [[ -n "${OUTPUT_S3_URI}" ]]; then
+  if [[ ${SKIP_OUTPUT_ON_ERROR} -eq 0 ]] && [[ ${COMMAND_EXIT_CODE} -ne 0 ]]; then
     echo 'The outbound sync was skipped due to the exit code.'
   else
     echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${OUTPUT_S3_URI}"
@@ -222,6 +242,12 @@ fi
 
 echo
 ELAPSED_SECONDS=$(( $(date +%s) - START_DATE ))
-printf "TOTAL_ELAPSED_TIME:       %s\n" "$(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
+echo_n_log "TOTAL_ELAPSED_TIME:   $(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
+
+if [[ -n "${OUTPUT_LOG_S3_URI}" ]]; then
+  if [[ ${SKIP_OUTPUT_ON_ERROR} -ne 0 ]] || [[ ${COMMAND_EXIT_CODE} -eq 0 ]]; then
+    echo_n_eval "aws s3 cp ${OUTPUT_LOG_FILE} ${OUTPUT_LOG_S3_URI}"
+  fi
+fi
 
 exit "${COMMAND_EXIT_CODE}"
