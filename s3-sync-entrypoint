@@ -51,7 +51,7 @@ fi
 
 SCRIPT_PATH=$(realpath "${0}")
 SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
-SCRIPT_VERSION='v0.1.0'
+SCRIPT_VERSION='v0.1.1'
 
 DRYRUN=0
 SKIP_OUTPUT_ON_ERROR=0
@@ -233,7 +233,7 @@ echo_n_eval "${COMMAND[@]}" \
 echo_n_log "COMMAND_EXIT_CODE:    ${COMMAND_EXIT_CODE}"
 
 if [[ -n "${OUTPUT_S3_URI}" ]]; then
-  if [[ ${SKIP_OUTPUT_ON_ERROR} -eq 0 ]] && [[ ${COMMAND_EXIT_CODE} -ne 0 ]]; then
+  if [[ ${SKIP_OUTPUT_ON_ERROR} -ne 0 ]] && [[ ${COMMAND_EXIT_CODE} -ne 0 ]]; then
     echo 'The outbound sync was skipped due to the exit code.'
   else
     echo_n_eval "aws s3 ${OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${OUTPUT_S3_URI}"
@@ -245,7 +245,7 @@ ELAPSED_SECONDS=$(( $(date +%s) - START_DATE ))
 echo_n_log "TOTAL_ELAPSED_TIME:   $(date --date=@${ELAPSED_SECONDS} -u +%H:%M:%S)"
 
 if [[ -n "${OUTPUT_LOG_S3_URI}" ]]; then
-  if [[ ${SKIP_OUTPUT_ON_ERROR} -ne 0 ]] || [[ ${COMMAND_EXIT_CODE} -eq 0 ]]; then
+  if [[ ${SKIP_OUTPUT_ON_ERROR} -eq 0 ]] || [[ ${COMMAND_EXIT_CODE} -eq 0 ]]; then
     echo_n_eval "aws s3 cp ${OUTPUT_LOG_FILE} ${OUTPUT_LOG_S3_URI}"
   fi
 fi
