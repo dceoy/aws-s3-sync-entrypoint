@@ -1,16 +1,16 @@
-aws-s3-sync-entrypoint
-======================
+s3-sync-entrypoint
+==================
 
 Bash entrypoint to synchronize data with AWS S3 before and after command execution
 
-[![CI to Docker Hub](https://github.com/dceoy/aws-s3-sync-entrypoint/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/dceoy/aws-s3-sync-entrypoint/actions/workflows/docker-publish.yml)
+[![CI to Docker Hub](https://github.com/dceoy/s3-sync-entrypoint/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/dceoy/s3-sync-entrypoint/actions/workflows/docker-publish.yml)
 
 Installation
 ------------
 
 ```sh
-$ git clone https://github.com/dceoy/aws-s3-sync-entrypoint.git
-$ cp -a aws-s3-sync-entrypoint/s3-sync-entrypoint /path/to/bin  # a path in ${PATH}
+$ git clone https://github.com/dceoy/s3-sync-entrypoint.git
+$ cp -a s3-sync-entrypoint/s3-sync-entrypoint /path/to/bin  # a path in ${PATH}
 ```
 
 Docker image
