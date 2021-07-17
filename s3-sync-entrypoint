@@ -7,7 +7,7 @@
 #       [--output-s3=<uri>] (--inbound-sync-option=<arg>)...
 #       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
 #       [--output-data-dir=<path>] [--upload-log-to-s3=<uri>]
-#       [--skip-output-on-failure] <command>...
+#       [--skip-output-on-failure] [--expand] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -34,6 +34,7 @@
 #                       Upload a log file to S3 after processes are completed
 #   --skip-output-on-failure
 #                       Skip outbound sync if a command fails
+#   --expand            Expand environment variables in arguments
 #   --version           Print the version and exit
 #   -h, --help          Print the usage and exit
 #
@@ -51,7 +52,7 @@ fi
 
 SCRIPT_PATH=$(realpath "${0}")
 SCRIPT_NAME=$(basename "${SCRIPT_PATH}")
-SCRIPT_VERSION='v0.1.1'
+SCRIPT_VERSION='v0.1.2'
 
 DRYRUN=0
 SKIP_OUTPUT_ON_ERROR=0
@@ -64,6 +65,10 @@ OUTPUT_LOG_FILE='/tmp/s3-sync-entrypoint.log.txt'
 OUTPUT_LOG_S3_URI=''
 COMMAND=()
 START_DATE="$(date +%s)"
+EXPAND=0
+for a in "${@}"; do
+  [[ "${a}" = '--expand' ]] && EXPAND=1 && break
+done
 
 function print_version {
   echo "${SCRIPT_NAME}: ${SCRIPT_VERSION}"
@@ -106,6 +111,14 @@ function echo_n_log {
   fi
 }
 
+function read_str {
+  if [[ ${EXPAND} -eq 0 ]]; then
+    echo -n "${*}"
+  else
+    eval "echo -n ${*}"
+  fi
+}
+
 while [[ ${#} -ge 1 ]]; do
   case "${1}" in
     '-h' | '--help' )
@@ -115,6 +128,9 @@ while [[ ${#} -ge 1 ]]; do
       print_version && exit 0
       ;;
     '--debug' )
+      shift 1
+      ;;
+    '--expand' )
       shift 1
       ;;
     '--dryrun' )
@@ -127,46 +143,46 @@ while [[ ${#} -ge 1 ]]; do
       SYNC_COMMAND='cp' && shift 1
       ;;
     '--input-s3' )
-      INPUT_S3_URIS+=("${2}") && shift 2
+      INPUT_S3_URIS+=("$(read_str "${2}")") && shift 2
       ;;
     --input-s3=* )
-      INPUT_S3_URIS+=("${1#*\=}") && shift 1
+      INPUT_S3_URIS+=("$(read_str "${1#*\=}")") && shift 1
       ;;
     '--output-s3' )
-      OUTPUT_S3_URI="${2}" && shift 2
+      OUTPUT_S3_URI="$(read_str "${2}")" && shift 2
       ;;
     --output-s3=* )
-      OUTPUT_S3_URI="${1#*\=}" && shift 1
+      OUTPUT_S3_URI="$(read_str "${1#*\=}")" && shift 1
       ;;
     '--inbound-sync-option' )
-      INBOUND_SYNC_OPTIONS+=("${2}") && shift 2
+      INBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
       ;;
     --inbound-sync-option=* )
-      INBOUND_SYNC_OPTIONS+=("${1#*\=}") && shift 1
+      INBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
       ;;
     '--outbound-sync-option' )
-      OUTBOUND_SYNC_OPTIONS+=("${2}") && shift 2
+      OUTBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
       ;;
     --outbound-sync-option=* )
-      OUTBOUND_SYNC_OPTIONS+=("${1#*\=}") && shift 1
+      OUTBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
       ;;
     '--input-data-dir' )
-      INPUT_DATA_DIR="${2}" && shift 2
+      INPUT_DATA_DIR="$(read_str "${2}")" && shift 2
       ;;
     --input-data-dir=* )
-      INPUT_DATA_DIR="${1#*\=}" && shift 1
+      INPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
       ;;
     '--output-data-dir' )
-      OUTPUT_DATA_DIR="${2}" && shift 2
+      OUTPUT_DATA_DIR="$(read_str "${2}")" && shift 2
       ;;
     --output-data-dir=* )
-      OUTPUT_DATA_DIR="${1#*\=}" && shift 1
+      OUTPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
       ;;
     '--upload-log-to-s3' )
-      OUTPUT_LOG_S3_URI="${2}" && shift 2
+      OUTPUT_LOG_S3_URI="$(read_str "${2}")" && shift 2
       ;;
     --upload-log-to-s3=* )
-      OUTPUT_LOG_S3_URI="${1#*\=}" && shift 1
+      OUTPUT_LOG_S3_URI="$(read_str "${1#*\=}")" && shift 1
       ;;
     -* )
       abort "invalid option: ${1}"
