@@ -7,7 +7,7 @@
 #       [--output-s3=<uri>] (--inbound-sync-option=<arg>)...
 #       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
 #       [--output-data-dir=<path>] [--upload-log-to-s3=<uri>]
-#       [--skip-output-on-failure] [--expand] <command>...
+#       [--skip-output-on-failure] [--suppress-expansion] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -34,7 +34,8 @@
 #                       Upload a log file to S3 after processes are completed
 #   --skip-output-on-failure
 #                       Skip outbound sync if a command fails
-#   --expand            Expand environment variables in arguments
+#   --suppress-expansion
+#                       Avoid extending environment variables in arguments
 #   --version           Print the version and exit
 #   -h, --help          Print the usage and exit
 #
@@ -65,9 +66,9 @@ OUTPUT_LOG_FILE='/tmp/s3-sync-entrypoint.log.txt'
 OUTPUT_LOG_S3_URI=''
 COMMAND=()
 START_DATE="$(date +%s)"
-EXPAND=0
+SUPPRESS_EXPANSION=0
 for a in "${@}"; do
-  [[ "${a}" = '--expand' ]] && EXPAND=1 && break
+  [[ "${a}" = '--suppress-expansion' ]] && SUPPRESS_EXPANSION=1 && break
 done
 
 function print_version {
@@ -112,10 +113,10 @@ function echo_n_log {
 }
 
 function read_str {
-  if [[ ${EXPAND} -eq 0 ]]; then
-    echo -n "${*}"
-  else
+  if [[ ${SUPPRESS_EXPANSION} -eq 0 ]]; then
     eval "echo -n ${*}"
+  else
+    echo -n "${*}"
   fi
 }
 
@@ -130,7 +131,7 @@ while [[ ${#} -ge 1 ]]; do
     '--debug' )
       shift 1
       ;;
-    '--expand' )
+    '--suppress-expansion' )
       shift 1
       ;;
     '--dryrun' )
