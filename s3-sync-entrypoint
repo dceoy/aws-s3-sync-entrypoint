@@ -93,7 +93,7 @@ function abort {
 
 function validate_s3_uri {
   for s in "${@}"; do
-    [[ "${s}" =~ ^s3://.+ ]] || abort "invalid URI: ${s}"
+    aws s3 ls "${s}" > /dev/null
   done
 }
 
