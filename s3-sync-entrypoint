@@ -189,7 +189,7 @@ while [[ ${#} -ge 1 ]]; do
       abort "invalid option: ${1}"
       ;;
     * )
-      COMMAND=("${@:1}") && break
+      COMMAND=("$(read_str "${@:1}")") && break
       ;;
   esac
 done
