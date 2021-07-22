@@ -110,7 +110,7 @@ function validate_s3_uri {
 
 function validate_s3_object {
   for s in "${@}"; do
-    aws s3 ls "${s}" > /dev/null
+    aws s3 ls "${s}" > /dev/null || abort "object not found: ${s}"
   done
 }
 
@@ -213,12 +213,17 @@ echo_n_log "AWSCLI_VERSION        $(aws --version)"
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   echo_n_log "INPUT_DATA_DIR:       ${INPUT_DATA_DIR}"
   echo_n_log "INPUT_S3_URIS:        ${SSE_INPUT_S3_URIS[*]}"
+  SSE_INBOUND_EXCL_SYNC="sync --exclude='*'"
   if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     SSE_INBOUND_SYNC="sync ${SSE_INBOUND_SYNC_OPTIONS[*]}"
+    for a in "${SSE_INBOUND_SYNC_OPTIONS[@]}"; do
+      [[ "${a}" =~ ^--(in|ex)clude= ]] || SSE_INBOUND_EXCL_SYNC+=" ${a}"
+    done
   else
     SSE_INBOUND_SYNC="sync"
   fi
   echo_n_log "INBOUND_SYNC:         ${SSE_INBOUND_SYNC}"
+  echo_n_log "INBOUND_EXCL_SYNC:    ${SSE_INBOUND_EXCL_SYNC}"
   validate_s3_object "${SSE_INPUT_S3_URIS[@]}"
 fi
 
@@ -251,10 +256,13 @@ echo
 
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   for i in "${SSE_INPUT_S3_URIS[@]}"; do
-    [[ "${i}" =~ /$ ]] \
-      && o="${INPUT_DATA_DIR%/}/" \
-      || o="${INPUT_DATA_DIR%/}/$(basename "${i}")"
-    echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${i} ${o}"
+    if [[ "${i}" =~ /$ ]]; then
+      echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${i} ${INPUT_DATA_DIR%/}/"
+    else
+      f="$(basename "${i}")"
+      d="$(dirname "${i}")"
+      echo_n_eval "aws s3 ${SSE_INBOUND_EXCL_SYNC} --include='${f}' ${d%/}/ ${INPUT_DATA_DIR%/}/"
+    fi
   done
 fi
 
