@@ -3,7 +3,7 @@
 # Bash entrypoint to synchronize data with AWS S3 before and after command execution
 #
 # Usage:
-#   s3-sync-entrypoint [--debug] [--dryrun] [--cp] (--input-s3=<uri>)...
+#   s3-sync-entrypoint [--debug] [--dryrun] (--input-s3=<uri>)...
 #       [--output-s3=<uri>] (--inbound-sync-option=<arg>)...
 #       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
 #       [--output-data-dir=<path>] [--upload-log-to-s3=<uri>]
@@ -14,7 +14,6 @@
 # Options:
 #   --debug             Run with debug mode
 #   --dryrun            Print commands without execution
-#   --cp                Use `aws s3 cp` instead of `aws s3 sync`
 #   --input-s3=<uri>    Specify input S3 URIs
 #                       (Data is transferred from S3 to `${INPUT_DATA_DIR}`.)
 #   --output-s3=<uri>   Specify an output S3 URI
@@ -51,21 +50,17 @@ if [[ ${#} -ge 1 ]]; then
   done
 fi
 
-[[ -n "${INPUT_DATA_DIR}" ]] \
-  && INPUT_DATA_DIR="${INPUT_DATA_DIR%/}/" \
-  || INPUT_DATA_DIR="${PWD}"
-[[ -n "${OUTPUT_DATA_DIR}" ]] \
-  && OUTPUT_DATA_DIR="${OUTPUT_DATA_DIR%/}/" \
-  || OUTPUT_DATA_DIR="${PWD}"
+[[ -n "${INPUT_DATA_DIR}" ]] || INPUT_DATA_DIR="${PWD}"
+[[ -n "${OUTPUT_DATA_DIR}" ]] || OUTPUT_DATA_DIR="${PWD}"
 
 set -u
 
+ARGV=("${*}")
 SSE_SCRIPT_PATH=$(realpath "${0}")
 SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-SSE_SCRIPT_VERSION='v0.1.2'
+SSE_SCRIPT_VERSION='v0.1.3'
 SSE_DRYRUN=0
 SSE_SKIP_OUTPUT_ON_ERROR=0
-SSE_SYNC_COMMAND='sync'
 SSE_INPUT_S3_URIS=()
 SSE_OUTPUT_S3_URI=''
 SSE_INBOUND_SYNC_OPTIONS=()
@@ -154,9 +149,6 @@ while [[ ${#} -ge 1 ]]; do
     '--skip-output-on-failure' )
       SSE_SKIP_OUTPUT_ON_ERROR=1 && shift 1
       ;;
-    '--cp' )
-      SSE_SYNC_COMMAND='cp' && shift 1
-      ;;
     '--input-s3' )
       SSE_INPUT_S3_URIS+=("$(read_str "${2}")") && shift 2
       ;;
@@ -210,6 +202,7 @@ done
 
 [[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]] && echo -n > "${SSE_OUTPUT_LOG_FILE}"
 
+echo_n_log "ARGV:                 ${ARGV[*]}"
 echo_n_log "OSTYPE:               ${OSTYPE}"
 echo_n_log "BASH:                 $(command -v bash)"
 echo_n_log "S3_SYNC_ENTRYPOINT:   ${SSE_SCRIPT_PATH}"
@@ -221,9 +214,9 @@ if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   echo_n_log "INPUT_DATA_DIR:       ${INPUT_DATA_DIR}"
   echo_n_log "INPUT_S3_URIS:        ${SSE_INPUT_S3_URIS[*]}"
   if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
-    SSE_INBOUND_SYNC="${SSE_SYNC_COMMAND} ${SSE_INBOUND_SYNC_OPTIONS[*]}"
+    SSE_INBOUND_SYNC="sync ${SSE_INBOUND_SYNC_OPTIONS[*]}"
   else
-    SSE_INBOUND_SYNC="${SSE_SYNC_COMMAND}"
+    SSE_INBOUND_SYNC="sync"
   fi
   echo_n_log "INBOUND_SYNC:         ${SSE_INBOUND_SYNC}"
   validate_s3_object "${SSE_INPUT_S3_URIS[@]}"
@@ -233,9 +226,9 @@ if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
   echo_n_log "OUTPUT_DATA_DIR:      ${OUTPUT_DATA_DIR}"
   echo_n_log "OUTPUT_S3_URI:        ${SSE_OUTPUT_S3_URI}"
   if [[ ${#SSE_OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
-    SSE_OUTBOUND_SYNC="${SSE_SYNC_COMMAND} ${SSE_OUTBOUND_SYNC_OPTIONS[*]}"
+    SSE_OUTBOUND_SYNC="sync ${SSE_OUTBOUND_SYNC_OPTIONS[*]}"
   else
-    SSE_OUTBOUND_SYNC="${SSE_SYNC_COMMAND}"
+    SSE_OUTBOUND_SYNC="sync"
   fi
   echo_n_log "OUTBOUND_SYNC:        ${SSE_OUTBOUND_SYNC}"
   validate_s3_uri "${SSE_OUTPUT_S3_URI}"
@@ -258,7 +251,10 @@ echo
 
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   for i in "${SSE_INPUT_S3_URIS[@]}"; do
-    echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${i} ${INPUT_DATA_DIR}"
+    [[ "${i}" =~ /$ ]] \
+      && o="${INPUT_DATA_DIR%/}/" \
+      || o="${INPUT_DATA_DIR%/}/$(basename "${i}")"
+    echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${i} ${o}"
   done
 fi
 
@@ -271,7 +267,7 @@ if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
   if [[ ${SSE_SKIP_OUTPUT_ON_ERROR} -ne 0 ]] && [[ ${SSE_COMMAND_EXIT_CODE} -ne 0 ]]; then
     echo 'The outbound sync was skipped due to the exit code.'
   else
-    echo_n_eval "aws s3 ${SSE_OUTBOUND_SYNC} ${OUTPUT_DATA_DIR} ${SSE_OUTPUT_S3_URI}"
+    echo_n_eval "aws s3 ${SSE_OUTBOUND_SYNC} ${OUTPUT_DATA_DIR%/}/ ${SSE_OUTPUT_S3_URI}"
     validate_s3_uri "${SSE_OUTPUT_S3_URI}"
   fi
 fi
