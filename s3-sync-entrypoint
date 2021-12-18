@@ -7,7 +7,7 @@
 #       [--output-s3=<uri>] (--inbound-sync-option=<arg>)...
 #       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
 #       [--output-data-dir=<path>] [--upload-log-to-s3=<uri>]
-#       [--skip-output-on-failure] [--suppress-expansion] <command>...
+#       [--skip-output-on-failure] [--disable-lookup] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -33,8 +33,7 @@
 #                       Upload a log file to S3 after processes are completed
 #   --skip-output-on-failure
 #                       Skip outbound sync if a command fails
-#   --suppress-expansion
-#                       Avoid extending environment variables in arguments
+#   --disable-lookup    Avoid looking up environment variables in arguments
 #   --version           Print version information and exit
 #   -h, --help          Print this help text and exit
 #
@@ -69,9 +68,9 @@ SSE_OUTPUT_LOG_FILE='/tmp/s3-sync-entrypoint.log.txt'
 SSE_OUTPUT_LOG_S3_URI=''
 SSE_COMMAND=()
 SSE_START_DATE="$(date +%s)"
-SSE_SUPPRESS_EXPANSION=0
+SSE_DISABLE_LOOKUP=0
 for a in "${@}"; do
-  [[ "${a}" = '--suppress-expansion' ]] && SSE_SUPPRESS_EXPANSION=1 && break
+  [[ "${a}" = '--disable-lookup' ]] && SSE_DISABLE_LOOKUP=1 && break
 done
 
 function print_version {
@@ -95,7 +94,7 @@ function abort {
 }
 
 function read_str {
-  if [[ ${SSE_SUPPRESS_EXPANSION} -eq 0 ]]; then
+  if [[ ${SSE_DISABLE_LOOKUP} -eq 0 ]]; then
     bash -c "eval 'echo ${*}'"
   else
     echo "${*}"
@@ -140,7 +139,7 @@ while [[ ${#} -ge 1 ]]; do
     --debug )
       shift 1
       ;;
-    --suppress-expansion )
+    --disable-lookup )
       shift 1
       ;;
     --dryrun )
