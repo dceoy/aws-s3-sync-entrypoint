@@ -12,7 +12,7 @@
 #   s3-sync-entrypoint -h|--help
 #
 # Options:
-#   --debug             Run with debug mode
+#   --debug             Enable debug mode
 #   --dryrun            Print commands without execution
 #   --input-s3=<uri>    Specify input S3 URIs
 #                       (Data is transferred from S3 to `${INPUT_DATA_DIR}`.)
@@ -35,8 +35,8 @@
 #                       Skip outbound sync if a command fails
 #   --suppress-expansion
 #                       Avoid extending environment variables in arguments
-#   --version           Print the version and exit
-#   -h, --help          Print the usage and exit
+#   --version           Print version information and exit
+#   -h, --help          Print this help text and exit
 #
 # Arguments:
 #   <command>           A command and arguments for it
@@ -58,7 +58,7 @@ set -u
 ARGV=("${*}")
 SSE_SCRIPT_PATH=$(realpath "${0}")
 SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-SSE_SCRIPT_VERSION='v0.1.3'
+SSE_SCRIPT_VERSION='v0.1.4'
 SSE_DRYRUN=0
 SSE_SKIP_OUTPUT_ON_ERROR=0
 SSE_INPUT_S3_URIS=()
@@ -117,7 +117,7 @@ function validate_s3_object {
 function echo_n_eval {
   printf "[%s]  $ %s\n" "$(date)" "${*}"
   if [[ ${SSE_DRYRUN} -eq 0 ]]; then
-    eval "${@}"
+    eval "${*}"
   fi
 }
 
@@ -131,61 +131,61 @@ function echo_n_log {
 
 while [[ ${#} -ge 1 ]]; do
   case "${1}" in
-    '-h' | '--help' )
+    -h | --help )
       print_usage && exit 0
       ;;
-    '--version' )
+    --version )
       print_version && exit 0
       ;;
-    '--debug' )
+    --debug )
       shift 1
       ;;
-    '--suppress-expansion' )
+    --suppress-expansion )
       shift 1
       ;;
-    '--dryrun' )
+    --dryrun )
       SSE_DRYRUN=1 && shift 1
       ;;
-    '--skip-output-on-failure' )
+    --skip-output-on-failure )
       SSE_SKIP_OUTPUT_ON_ERROR=1 && shift 1
       ;;
-    '--input-s3' )
+    --input-s3 )
       SSE_INPUT_S3_URIS+=("$(read_str "${2}")") && shift 2
       ;;
     --input-s3=* )
       SSE_INPUT_S3_URIS+=("$(read_str "${1#*\=}")") && shift 1
       ;;
-    '--output-s3' )
+    --output-s3 )
       SSE_OUTPUT_S3_URI="$(read_str "${2}")" && shift 2
       ;;
     --output-s3=* )
       SSE_OUTPUT_S3_URI="$(read_str "${1#*\=}")" && shift 1
       ;;
-    '--inbound-sync-option' )
+    --inbound-sync-option )
       SSE_INBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
       ;;
     --inbound-sync-option=* )
       SSE_INBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
       ;;
-    '--outbound-sync-option' )
+    --outbound-sync-option )
       SSE_OUTBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
       ;;
     --outbound-sync-option=* )
       SSE_OUTBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
       ;;
-    '--input-data-dir' )
+    --input-data-dir )
       INPUT_DATA_DIR="$(read_str "${2}")" && shift 2
       ;;
     --input-data-dir=* )
       INPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
       ;;
-    '--output-data-dir' )
+    --output-data-dir )
       OUTPUT_DATA_DIR="$(read_str "${2}")" && shift 2
       ;;
     --output-data-dir=* )
       OUTPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
       ;;
-    '--upload-log-to-s3' )
+    --upload-log-to-s3 )
       SSE_OUTPUT_LOG_S3_URI="$(read_str "${2}")" && shift 2
       ;;
     --upload-log-to-s3=* )
