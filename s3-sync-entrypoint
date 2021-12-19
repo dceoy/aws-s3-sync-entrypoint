@@ -95,7 +95,7 @@ function abort {
 
 function read_str {
   if [[ ${SSE_DISABLE_LOOKUP} -eq 0 ]]; then
-    bash -c "eval 'echo ${*}'"
+    bash -c "eval 'set -eu && echo ${*}'"
   else
     echo "${*}"
   fi
