@@ -57,7 +57,7 @@ set -u
 ARGV=("${*}")
 SSE_SCRIPT_PATH=$(realpath "${0}")
 SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-SSE_SCRIPT_VERSION='v0.1.4'
+SSE_SCRIPT_VERSION='v0.1.5'
 SSE_DRYRUN=0
 SSE_SKIP_OUTPUT_ON_ERROR=0
 SSE_INPUT_S3_URIS=()
@@ -95,7 +95,7 @@ function abort {
 
 function read_str {
   if [[ ${SSE_DISABLE_LOOKUP} -eq 0 ]]; then
-    bash -c "eval 'set -eu && echo ${*}'"
+    eval "set -eu && echo ${*}"
   else
     echo "${*}"
   fi
