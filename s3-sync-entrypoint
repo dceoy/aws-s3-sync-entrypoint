@@ -74,7 +74,7 @@ for a in "${@}"; do
 done
 
 function print_version {
-  echo "${SSE_SCRIPT_NAME}: ${SSE_SCRIPT_VERSION}"
+  echo -e "${SSE_SCRIPT_NAME}: ${SSE_SCRIPT_VERSION}"
 }
 
 function print_usage {
@@ -87,7 +87,7 @@ function abort {
       cat -
     else
       SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-      echo "${SSE_SCRIPT_NAME}: ${*}"
+      echo -e "${SSE_SCRIPT_NAME}: ${*}"
     fi
   } >&2
   exit 1
@@ -95,9 +95,9 @@ function abort {
 
 function read_str {
   if [[ ${SSE_DISABLE_LOOKUP} -eq 0 ]]; then
-    eval "set -eu && echo ${*}"
+    eval "set -eu && echo -e ${*}" || abort
   else
-    echo "${*}"
+    echo -e "${*}"
   fi
 }
 
@@ -122,9 +122,9 @@ function echo_n_eval {
 
 function echo_n_log {
   if [[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]]; then
-    echo "${*}" | tee -a "${SSE_OUTPUT_LOG_FILE}"
+    echo -e "${*}" | tee -a "${SSE_OUTPUT_LOG_FILE}"
   else
-    echo "${*}"
+    echo -e "${*}"
   fi
 }
 
@@ -199,7 +199,7 @@ while [[ ${#} -ge 1 ]]; do
   esac
 done
 
-[[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]] && echo -n > "${SSE_OUTPUT_LOG_FILE}"
+[[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]] && echo -ne > "${SSE_OUTPUT_LOG_FILE}"
 
 echo_n_log "ARGV:                 ${ARGV[*]}"
 echo_n_log "OSTYPE:               ${OSTYPE}"
@@ -207,7 +207,7 @@ echo_n_log "BASH:                 $(command -v bash)"
 echo_n_log "S3_SYNC_ENTRYPOINT:   ${SSE_SCRIPT_PATH}"
 echo_n_log "PWD:                  ${PWD}"
 echo_n_log "AWSCLI:               $(command -v aws)"
-echo_n_log "AWSCLI_VERSION        $(aws --version)"
+echo_n_log "AWSCLI_VERSION:       $(aws --version)"
 
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   echo_n_log "INPUT_DATA_DIR:       ${INPUT_DATA_DIR}"
@@ -272,7 +272,7 @@ echo_n_log "COMMAND_EXIT_CODE:    ${SSE_COMMAND_EXIT_CODE}"
 
 if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
   if [[ ${SSE_SKIP_OUTPUT_ON_ERROR} -ne 0 ]] && [[ ${SSE_COMMAND_EXIT_CODE} -ne 0 ]]; then
-    echo 'The outbound sync was skipped due to the exit code.'
+    echo -e 'The outbound sync was skipped due to the exit code.'
   else
     echo_n_eval "aws s3 ${SSE_OUTBOUND_SYNC} ${OUTPUT_DATA_DIR%/}/ ${SSE_OUTPUT_S3_URI}"
     validate_s3_uri "${SSE_OUTPUT_S3_URI}"
