@@ -95,7 +95,7 @@ function abort {
 
 function read_str {
   if [[ ${SSE_DISABLE_LOOKUP} -eq 0 ]]; then
-    eval "set -eu && echo -e ${*}" || abort
+    eval "set -eu && echo -e ${*}"
   else
     echo -e "${*}"
   fi
@@ -129,74 +129,76 @@ function echo_n_log {
 }
 
 while [[ ${#} -ge 1 ]]; do
-  case "${1}" in
-    -h | --help )
-      print_usage && exit 0
-      ;;
-    --version )
-      print_version && exit 0
-      ;;
-    --debug )
-      shift 1
-      ;;
-    --disable-lookup )
-      shift 1
-      ;;
-    --dryrun )
-      SSE_DRYRUN=1 && shift 1
-      ;;
-    --skip-output-on-failure )
-      SSE_SKIP_OUTPUT_ON_ERROR=1 && shift 1
-      ;;
-    --input-s3 )
-      SSE_INPUT_S3_URIS+=("$(read_str "${2}")") && shift 2
-      ;;
-    --input-s3=* )
-      SSE_INPUT_S3_URIS+=("$(read_str "${1#*\=}")") && shift 1
-      ;;
-    --output-s3 )
-      SSE_OUTPUT_S3_URI="$(read_str "${2}")" && shift 2
-      ;;
-    --output-s3=* )
-      SSE_OUTPUT_S3_URI="$(read_str "${1#*\=}")" && shift 1
-      ;;
-    --inbound-sync-option )
-      SSE_INBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
-      ;;
-    --inbound-sync-option=* )
-      SSE_INBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
-      ;;
-    --outbound-sync-option )
-      SSE_OUTBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
-      ;;
-    --outbound-sync-option=* )
-      SSE_OUTBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
-      ;;
-    --input-data-dir )
-      INPUT_DATA_DIR="$(read_str "${2}")" && shift 2
-      ;;
-    --input-data-dir=* )
-      INPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
-      ;;
-    --output-data-dir )
-      OUTPUT_DATA_DIR="$(read_str "${2}")" && shift 2
-      ;;
-    --output-data-dir=* )
-      OUTPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
-      ;;
-    --upload-log-to-s3 )
-      SSE_OUTPUT_LOG_S3_URI="$(read_str "${2}")" && shift 2
-      ;;
-    --upload-log-to-s3=* )
-      SSE_OUTPUT_LOG_S3_URI="$(read_str "${1#*\=}")" && shift 1
-      ;;
-    -* )
-      abort "invalid option: ${1}"
-      ;;
-    * )
-      SSE_COMMAND=("$(read_str "${@:1}")") && break
-      ;;
-  esac
+  {
+    case "${1}" in
+      -h | --help )
+        print_usage && exit 0
+        ;;
+      --version )
+        print_version && exit 0
+        ;;
+      --debug )
+        shift 1
+        ;;
+      --disable-lookup )
+        shift 1
+        ;;
+      --dryrun )
+        SSE_DRYRUN=1 && shift 1
+        ;;
+      --skip-output-on-failure )
+        SSE_SKIP_OUTPUT_ON_ERROR=1 && shift 1
+        ;;
+      --input-s3 )
+        SSE_INPUT_S3_URIS+=("$(read_str "${2}")") && shift 2
+        ;;
+      --input-s3=* )
+        SSE_INPUT_S3_URIS+=("$(read_str "${1#*\=}")") && shift 1
+        ;;
+      --output-s3 )
+        SSE_OUTPUT_S3_URI="$(read_str "${2}")" && shift 2
+        ;;
+      --output-s3=* )
+        SSE_OUTPUT_S3_URI="$(read_str "${1#*\=}")" && shift 1
+        ;;
+      --inbound-sync-option )
+        SSE_INBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
+        ;;
+      --inbound-sync-option=* )
+        SSE_INBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
+        ;;
+      --outbound-sync-option )
+        SSE_OUTBOUND_SYNC_OPTIONS+=("$(read_str "${2}")") && shift 2
+        ;;
+      --outbound-sync-option=* )
+        SSE_OUTBOUND_SYNC_OPTIONS+=("$(read_str "${1#*\=}")") && shift 1
+        ;;
+      --input-data-dir )
+        INPUT_DATA_DIR="$(read_str "${2}")" && shift 2
+        ;;
+      --input-data-dir=* )
+        INPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
+        ;;
+      --output-data-dir )
+        OUTPUT_DATA_DIR="$(read_str "${2}")" && shift 2
+        ;;
+      --output-data-dir=* )
+        OUTPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
+        ;;
+      --upload-log-to-s3 )
+        SSE_OUTPUT_LOG_S3_URI="$(read_str "${2}")" && shift 2
+        ;;
+      --upload-log-to-s3=* )
+        SSE_OUTPUT_LOG_S3_URI="$(read_str "${1#*\=}")" && shift 1
+        ;;
+      -* )
+        abort "invalid option: ${1}"
+        ;;
+      * )
+        SSE_COMMAND=("$(read_str "${@:1}")") && break
+          ;;
+      esac
+    } || exit 1
 done
 
 [[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]] && echo -ne > "${SSE_OUTPUT_LOG_FILE}"
