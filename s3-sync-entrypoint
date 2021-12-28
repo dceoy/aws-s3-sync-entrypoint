@@ -4,10 +4,11 @@
 #
 # Usage:
 #   s3-sync-entrypoint [--debug] [--dryrun] (--input-s3=<uri>)...
-#       [--output-s3=<uri>] (--inbound-sync-option=<arg>)...
-#       (--outbound-sync-option=<arg>)... [--input-data-dir=<path>]
-#       [--output-data-dir=<path>] [--upload-log-to-s3=<uri>]
-#       [--skip-output-on-failure] [--disable-lookup] <command>...
+#       [--intermediate-s3=<uri>] [--output-s3=<uri>]
+#       (--inbound-sync-option=<arg>)... (--outbound-sync-option=<arg>)...
+#       [--input-data-dir=<path>] [--output-data-dir=<path>]
+#       [--upload-log-to-s3=<uri>] [--skip-output-on-failure]
+#       [--disable-lookup] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -16,6 +17,9 @@
 #   --dryrun            Print commands without execution
 #   --input-s3=<uri>    Specify input S3 URIs
 #                       (Data is transferred from S3 to `${INPUT_DATA_DIR}`.)
+#   --intermediate-s3=<uri>
+#                       Specify intermediate S3 URIs
+#                       (Data is transferred from S3 to `${OUTPUT_DATA_DIR}`.)
 #   --output-s3=<uri>   Specify an output S3 URI
 #                       (Data is transferred from `${OUTPUT_DATA_DIR}` to S3.)
 #   --inbound-sync-option=<arg>
@@ -57,10 +61,11 @@ set -u
 ARGV=("${*}")
 SSE_SCRIPT_PATH=$(realpath "${0}")
 SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-SSE_SCRIPT_VERSION='v0.1.5'
+SSE_SCRIPT_VERSION='v0.1.6'
 SSE_DRYRUN=0
 SSE_SKIP_OUTPUT_ON_ERROR=0
 SSE_INPUT_S3_URIS=()
+SSE_INTERMEDIATE_S3_URI=''
 SSE_OUTPUT_S3_URI=''
 SSE_INBOUND_SYNC_OPTIONS=()
 SSE_OUTBOUND_SYNC_OPTIONS=()
@@ -155,6 +160,12 @@ while [[ ${#} -ge 1 ]]; do
       --input-s3=* )
         SSE_INPUT_S3_URIS+=("$(read_str "${1#*\=}")") && shift 1
         ;;
+      --intermediate-s3 )
+        SSE_INTERMEDIATE_S3_URI="$(read_str "${2}")" && shift 2
+        ;;
+      --intermediate-s3=* )
+        SSE_INTERMEDIATE_S3_URI="$(read_str "${1#*\=}")" && shift 1
+        ;;
       --output-s3 )
         SSE_OUTPUT_S3_URI="$(read_str "${2}")" && shift 2
         ;;
@@ -203,17 +214,17 @@ done
 
 [[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]] && echo -ne > "${SSE_OUTPUT_LOG_FILE}"
 
-echo_n_log "ARGV:                 ${ARGV[*]}"
-echo_n_log "OSTYPE:               ${OSTYPE}"
-echo_n_log "BASH:                 $(command -v bash)"
-echo_n_log "S3_SYNC_ENTRYPOINT:   ${SSE_SCRIPT_PATH}"
-echo_n_log "PWD:                  ${PWD}"
-echo_n_log "AWSCLI:               $(command -v aws)"
-echo_n_log "AWSCLI_VERSION:       $(aws --version)"
+echo_n_log "ARGV:                   ${ARGV[*]}"
+echo_n_log "OSTYPE:                 ${OSTYPE}"
+echo_n_log "BASH:                   $(command -v bash)"
+echo_n_log "S3_SYNC_ENTRYPOINT:     ${SSE_SCRIPT_PATH}"
+echo_n_log "PWD:                    ${PWD}"
+echo_n_log "AWSCLI:                 $(command -v aws)"
+echo_n_log "AWSCLI_VERSION:         $(aws --version)"
 
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
-  echo_n_log "INPUT_DATA_DIR:       ${INPUT_DATA_DIR}"
-  echo_n_log "INPUT_S3_URIS:        ${SSE_INPUT_S3_URIS[*]}"
+  echo_n_log "INPUT_DATA_DIR:         ${INPUT_DATA_DIR}"
+  echo_n_log "INPUT_S3_URIS:          ${SSE_INPUT_S3_URIS[*]}"
   SSE_INBOUND_EXCL_SYNC="sync --exclude='*'"
   if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     SSE_INBOUND_SYNC="sync ${SSE_INBOUND_SYNC_OPTIONS[*]}"
@@ -223,20 +234,40 @@ if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   else
     SSE_INBOUND_SYNC="sync"
   fi
-  echo_n_log "INBOUND_SYNC:         ${SSE_INBOUND_SYNC}"
-  echo_n_log "INBOUND_EXCL_SYNC:    ${SSE_INBOUND_EXCL_SYNC}"
+  echo_n_log "INBOUND_SYNC:           ${SSE_INBOUND_SYNC}"
+  echo_n_log "INBOUND_EXCL_SYNC:      ${SSE_INBOUND_EXCL_SYNC}"
   validate_s3_object "${SSE_INPUT_S3_URIS[@]}"
 fi
 
+if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
+  echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
+  echo_n_log "INTERMEDIATE_S3_URI:    ${SSE_INTERMEDIATE_S3_URI}"
+  if [[ ${#SSE_INPUT_S3_URIS[@]} -eq 0 ]]; then
+    SSE_INBOUND_EXCL_SYNC="sync --exclude='*'"
+    if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
+      SSE_INBOUND_SYNC="sync ${SSE_INBOUND_SYNC_OPTIONS[*]}"
+      for a in "${SSE_INBOUND_SYNC_OPTIONS[@]}"; do
+        [[ "${a}" =~ ^--(in|ex)clude= ]] || SSE_INBOUND_EXCL_SYNC+=" ${a}"
+      done
+    else
+      SSE_INBOUND_SYNC="sync"
+    fi
+    echo_n_log "INBOUND_SYNC:           ${SSE_INBOUND_SYNC}"
+    echo_n_log "INBOUND_EXCL_SYNC:      ${SSE_INBOUND_EXCL_SYNC}"
+  fi
+  validate_s3_object "${SSE_INTERMEDIATE_S3_URI}"
+fi
+
 if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
-  echo_n_log "OUTPUT_DATA_DIR:      ${OUTPUT_DATA_DIR}"
-  echo_n_log "OUTPUT_S3_URI:        ${SSE_OUTPUT_S3_URI}"
+  [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]] \
+    || echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
+  echo_n_log "OUTPUT_S3_URI:          ${SSE_OUTPUT_S3_URI}"
   if [[ ${#SSE_OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     SSE_OUTBOUND_SYNC="sync ${SSE_OUTBOUND_SYNC_OPTIONS[*]}"
   else
     SSE_OUTBOUND_SYNC="sync"
   fi
-  echo_n_log "OUTBOUND_SYNC:        ${SSE_OUTBOUND_SYNC}"
+  echo_n_log "OUTBOUND_SYNC:          ${SSE_OUTBOUND_SYNC}"
   validate_s3_uri "${SSE_OUTPUT_S3_URI}"
 fi
 
@@ -245,7 +276,7 @@ if [[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]]; then
 fi
 
 if [[ ${#SSE_COMMAND[@]} -gt 0 ]]; then
-  echo_n_log "COMMAND:              ${SSE_COMMAND[*]}"
+  echo_n_log "COMMAND:                ${SSE_COMMAND[*]}"
 else
   abort "$(print_usage)"
 fi
@@ -267,10 +298,20 @@ if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   done
 fi
 
+if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
+  if [[ "${SSE_INTERMEDIATE_S3_URI}" =~ /$ ]]; then
+    echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${SSE_INTERMEDIATE_S3_URI} ${OUTPUT_DATA_DIR%/}/"
+  else
+    f="$(basename "${SSE_INTERMEDIATE_S3_URI}")"
+    d="$(dirname "${SSE_INTERMEDIATE_S3_URI}")"
+    echo_n_eval "aws s3 ${SSE_INBOUND_EXCL_SYNC} --include='${f}' ${d%/}/ ${OUTPUT_DATA_DIR%/}/"
+  fi
+fi
+
 echo_n_eval "${SSE_COMMAND[@]}" \
   && SSE_COMMAND_EXIT_CODE="${?}" \
   || SSE_COMMAND_EXIT_CODE="${?}"
-echo_n_log "COMMAND_EXIT_CODE:    ${SSE_COMMAND_EXIT_CODE}"
+echo_n_log "COMMAND_EXIT_CODE:      ${SSE_COMMAND_EXIT_CODE}"
 
 if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
   if [[ ${SSE_SKIP_OUTPUT_ON_ERROR} -ne 0 ]] && [[ ${SSE_COMMAND_EXIT_CODE} -ne 0 ]]; then
@@ -283,7 +324,7 @@ fi
 
 echo
 SSE_ELAPSED_SECONDS=$(( $(date +%s) - SSE_START_DATE ))
-echo_n_log "TOTAL_ELAPSED_TIME:   $(date --date=@${SSE_ELAPSED_SECONDS} -u +%H:%M:%S)"
+echo_n_log "TOTAL_ELAPSED_TIME:     $(date --date=@${SSE_ELAPSED_SECONDS} -u +%H:%M:%S)"
 
 if [[ -n "${SSE_OUTPUT_LOG_S3_URI}" ]]; then
   if [[ ${SSE_SKIP_OUTPUT_ON_ERROR} -eq 0 ]] || [[ ${SSE_COMMAND_EXIT_CODE} -eq 0 ]]; then
