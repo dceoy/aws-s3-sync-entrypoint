@@ -61,7 +61,7 @@ set -u
 ARGV=("${*}")
 SSE_SCRIPT_PATH=$(realpath "${0}")
 SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-SSE_SCRIPT_VERSION='v0.1.6'
+SSE_SCRIPT_VERSION='v0.2.0'
 SSE_DRYRUN=0
 SSE_SKIP_OUTPUT_ON_ERROR=0
 SSE_INPUT_S3_URIS=()
@@ -225,17 +225,12 @@ echo_n_log "AWSCLI_VERSION:         $(aws --version)"
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   echo_n_log "INPUT_DATA_DIR:         ${INPUT_DATA_DIR}"
   echo_n_log "INPUT_S3_URIS:          ${SSE_INPUT_S3_URIS[*]}"
-  SSE_INBOUND_EXCL_SYNC="sync --exclude='*'"
   if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     SSE_INBOUND_SYNC="sync ${SSE_INBOUND_SYNC_OPTIONS[*]}"
-    for a in "${SSE_INBOUND_SYNC_OPTIONS[@]}"; do
-      [[ "${a}" =~ ^--(in|ex)clude= ]] || SSE_INBOUND_EXCL_SYNC+=" ${a}"
-    done
   else
     SSE_INBOUND_SYNC="sync"
   fi
   echo_n_log "INBOUND_SYNC:           ${SSE_INBOUND_SYNC}"
-  echo_n_log "INBOUND_EXCL_SYNC:      ${SSE_INBOUND_EXCL_SYNC}"
   validate_s3_object "${SSE_INPUT_S3_URIS[@]}"
 fi
 
@@ -243,24 +238,20 @@ if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
   echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
   echo_n_log "INTERMEDIATE_S3_URI:    ${SSE_INTERMEDIATE_S3_URI}"
   if [[ ${#SSE_INPUT_S3_URIS[@]} -eq 0 ]]; then
-    SSE_INBOUND_EXCL_SYNC="sync --exclude='*'"
     if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
       SSE_INBOUND_SYNC="sync ${SSE_INBOUND_SYNC_OPTIONS[*]}"
-      for a in "${SSE_INBOUND_SYNC_OPTIONS[@]}"; do
-        [[ "${a}" =~ ^--(in|ex)clude= ]] || SSE_INBOUND_EXCL_SYNC+=" ${a}"
-      done
     else
       SSE_INBOUND_SYNC="sync"
     fi
     echo_n_log "INBOUND_SYNC:           ${SSE_INBOUND_SYNC}"
-    echo_n_log "INBOUND_EXCL_SYNC:      ${SSE_INBOUND_EXCL_SYNC}"
   fi
   validate_s3_object "${SSE_INTERMEDIATE_S3_URI}"
 fi
 
 if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
-  [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]] \
-    || echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
+  if [[ -z "${SSE_INTERMEDIATE_S3_URI}" ]]; then
+    echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
+  fi
   echo_n_log "OUTPUT_S3_URI:          ${SSE_OUTPUT_S3_URI}"
   if [[ ${#SSE_OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     SSE_OUTBOUND_SYNC="sync ${SSE_OUTBOUND_SYNC_OPTIONS[*]}"
@@ -288,24 +279,12 @@ echo
 
 if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
   for i in "${SSE_INPUT_S3_URIS[@]}"; do
-    if [[ "${i}" =~ /$ ]]; then
-      echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${i} ${INPUT_DATA_DIR%/}/"
-    else
-      f="$(basename "${i}")"
-      d="$(dirname "${i}")"
-      echo_n_eval "aws s3 ${SSE_INBOUND_EXCL_SYNC} --include='${f}' ${d%/}/ ${INPUT_DATA_DIR%/}/"
-    fi
+    echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${i} ${INPUT_DATA_DIR%/}/"
   done
 fi
 
 if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
-  if [[ "${SSE_INTERMEDIATE_S3_URI}" =~ /$ ]]; then
-    echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${SSE_INTERMEDIATE_S3_URI} ${OUTPUT_DATA_DIR%/}/"
-  else
-    f="$(basename "${SSE_INTERMEDIATE_S3_URI}")"
-    d="$(dirname "${SSE_INTERMEDIATE_S3_URI}")"
-    echo_n_eval "aws s3 ${SSE_INBOUND_EXCL_SYNC} --include='${f}' ${d%/}/ ${OUTPUT_DATA_DIR%/}/"
-  fi
+  echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${SSE_INTERMEDIATE_S3_URI} ${OUTPUT_DATA_DIR%/}/"
 fi
 
 echo_n_eval "${SSE_COMMAND[@]}" \
