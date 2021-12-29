@@ -7,8 +7,8 @@
 #       [--intermediate-s3=<uri>] [--output-s3=<uri>]
 #       (--inbound-sync-option=<arg>)... (--outbound-sync-option=<arg>)...
 #       [--input-data-dir=<path>] [--output-data-dir=<path>]
-#       [--upload-log-to-s3=<uri>] [--skip-output-on-failure]
-#       [--disable-lookup] <command>...
+#       [--intermediate-data-dir=<path>] [--upload-log-to-s3=<uri>]
+#       [--skip-output-on-failure] [--disable-lookup] <command>...
 #   s3-sync-entrypoint --version
 #   s3-sync-entrypoint -h|--help
 #
@@ -33,6 +33,8 @@
 #   --output-data-dir=<path>
 #                       Specify a local directory path for output data to S3
 #                       (This overrides `${OUTPUT_DATA_DIR}`.)
+#   --intermediate-data-dir=<path>
+#                       Specify a local directory path for intermediate data
 #   --upload-log-to-s3=<uri>
 #                       Upload a log file to S3 after processes are completed
 #   --skip-output-on-failure
@@ -61,7 +63,7 @@ set -u
 ARGV=("${*}")
 SSE_SCRIPT_PATH=$(realpath "${0}")
 SSE_SCRIPT_NAME=$(basename "${SSE_SCRIPT_PATH}")
-SSE_SCRIPT_VERSION='v0.2.0'
+SSE_SCRIPT_VERSION='v0.2.1'
 SSE_DRYRUN=0
 SSE_SKIP_OUTPUT_ON_ERROR=0
 SSE_INPUT_S3_URIS=()
@@ -69,6 +71,7 @@ SSE_INTERMEDIATE_S3_URI=''
 SSE_OUTPUT_S3_URI=''
 SSE_INBOUND_SYNC_OPTIONS=()
 SSE_OUTBOUND_SYNC_OPTIONS=()
+SSE_INTERMEDIATE_DATA_DIR="${OUTPUT_DATA_DIR}"
 SSE_OUTPUT_LOG_FILE='/tmp/s3-sync-entrypoint.log.txt'
 SSE_OUTPUT_LOG_S3_URI=''
 SSE_COMMAND=()
@@ -196,6 +199,12 @@ while [[ ${#} -ge 1 ]]; do
       --output-data-dir=* )
         OUTPUT_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
         ;;
+      --intermediate-data-dir )
+        SSE_INTERMEDIATE_DATA_DIR="$(read_str "${2}")" && shift 2
+        ;;
+      --intermediate-data-dir=* )
+        SSE_INTERMEDIATE_DATA_DIR="$(read_str "${1#*\=}")" && shift 1
+        ;;
       --upload-log-to-s3 )
         SSE_OUTPUT_LOG_S3_URI="$(read_str "${2}")" && shift 2
         ;;
@@ -235,7 +244,7 @@ if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
 fi
 
 if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
-  echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
+  echo_n_log "INTERMEDIATE_DATA_DIR:  ${SSE_INTERMEDIATE_DATA_DIR}"
   echo_n_log "INTERMEDIATE_S3_URI:    ${SSE_INTERMEDIATE_S3_URI}"
   if [[ ${#SSE_INPUT_S3_URIS[@]} -eq 0 ]]; then
     if [[ ${#SSE_INBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
@@ -249,9 +258,7 @@ if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
 fi
 
 if [[ -n "${SSE_OUTPUT_S3_URI}" ]]; then
-  if [[ -z "${SSE_INTERMEDIATE_S3_URI}" ]]; then
-    echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
-  fi
+  echo_n_log "OUTPUT_DATA_DIR:        ${OUTPUT_DATA_DIR}"
   echo_n_log "OUTPUT_S3_URI:          ${SSE_OUTPUT_S3_URI}"
   if [[ ${#SSE_OUTBOUND_SYNC_OPTIONS[@]} -gt 0 ]]; then
     SSE_OUTBOUND_SYNC="sync ${SSE_OUTBOUND_SYNC_OPTIONS[*]}"
@@ -284,7 +291,8 @@ if [[ ${#SSE_INPUT_S3_URIS[@]} -gt 0 ]]; then
 fi
 
 if [[ -n "${SSE_INTERMEDIATE_S3_URI}" ]]; then
-  echo_n_eval "aws s3 ${SSE_INBOUND_SYNC} ${SSE_INTERMEDIATE_S3_URI} ${OUTPUT_DATA_DIR%/}/"
+  echo_n_eval \
+    "aws s3 ${SSE_INBOUND_SYNC} ${SSE_INTERMEDIATE_S3_URI} ${SSE_INTERMEDIATE_DATA_DIR%/}/"
 fi
 
 echo_n_eval "${SSE_COMMAND[@]}" \
